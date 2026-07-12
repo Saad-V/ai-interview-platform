@@ -5,3 +5,4 @@ from app.core.config import settings
 engine = create_engine(settings.database_url, echo=True)
 
 session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+

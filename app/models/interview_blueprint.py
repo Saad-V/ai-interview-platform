@@ -17,3 +17,4 @@ class InterviewBlueprint(BaseModel):
     blueprint_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
     model_used: Mapped[str] = mapped_column(nullable=False)
     interview_session: Mapped["InterviewSession"] = relationship(back_populates="interview_blueprint")
+

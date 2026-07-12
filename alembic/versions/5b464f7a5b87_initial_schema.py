@@ -68,9 +68,10 @@ def upgrade() -> None:
     )
     op.create_table('job_descriptions',
     sa.Column('storage_path', sa.String(), nullable=False),
-    sa.Column('raw_text', sa.String(), nullable=False),
+    sa.Column('raw_text', sa.String(), nullable=True),
     sa.Column('mime_type', sa.String(), nullable=False),
     sa.Column('original_filename', sa.String(), nullable=False),
+    sa.Column('file_size', sa.Integer(), nullable=False),
     sa.Column('interview_session_id', sa.UUID(), nullable=False),
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),

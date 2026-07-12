@@ -16,7 +16,7 @@ class Report(BaseModel):
     interview_session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('interview_sessions.id', ondelete="CASCADE"), unique=True, nullable=False)
     overall_score: Mapped[float] = mapped_column(nullable=False)
     report_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    pdf_storage_path: Mapped[str] = mapped_column(nullable=False)
+    pdf_storage_path: Mapped[str] = mapped_column(nullable=True)
     interview_session: Mapped["InterviewSession"] = relationship(back_populates="report")
 
 

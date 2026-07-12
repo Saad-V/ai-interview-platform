@@ -14,8 +14,9 @@ if TYPE_CHECKING:
 class JobDescription(BaseModel):
     __tablename__ = "job_descriptions"
     storage_path: Mapped[str] = mapped_column(nullable=False)
-    raw_text: Mapped[str] = mapped_column(nullable=False)
+    raw_text: Mapped[str | None] = mapped_column(nullable=True)
     mime_type: Mapped[str] = mapped_column(nullable=False)
     original_filename: Mapped[str] = mapped_column(nullable=False)
+    file_size: Mapped[int] = mapped_column(nullable=False)
     interview_session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('interview_sessions.id', ondelete="CASCADE"), unique=True, nullable=False)
     interview_session: Mapped["InterviewSession"] = relationship(back_populates="job_description")
