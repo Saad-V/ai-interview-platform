@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     postgres_port: int
     postgres_db: str
     gemini_api_key: str
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_api_key_2: str
+    gemini_model: str = "gemini-3.5-flash"
 
     model_config = SettingsConfigDict(
         env_file=".env",

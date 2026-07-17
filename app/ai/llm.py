@@ -3,8 +3,11 @@ import json
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
-
+import time
 from app.core.config import settings
+
+MAX_RETRIES = 3
+INITIAL_DELAY = 5
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -30,15 +33,19 @@ def generate_structured_output(
         ),
     )
 
-    if getattr(response, "parsed", None) is not None:
-        return response.parsed
-
-    raw_text = getattr(response, "text", None)
-    if raw_text:
+    for attempt in range(MAX_RETRIES):
         try:
-            payload = json.loads(raw_text)
-            return response_schema.model_validate(payload)
-        except (json.JSONDecodeError, TypeError, ValueError) as exc:
-            raise ValueError("Gemini returned an invalid structured response.") from exc
+            return response.parsed
 
-    raise ValueError("Gemini returned an invalid structured response.")
+        except Exception as e:
+            if attempt == MAX_RETRIES - 1:
+                raise
+
+            delay = INITIAL_DELAY * (2 ** attempt)
+
+            print(
+                f"Gemini unavailable (503). "
+                f"Retrying in {delay} seconds..."
+            )
+
+            time.sleep(delay)

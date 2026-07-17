@@ -62,105 +62,113 @@ def start_interview(
             detail="Interview session not found.",
         )
 
-    candidate = candidate_profile_repository.get_by_session_id(
-        db, interview_session_id
-    )
-    job = job_profile_repository.get_by_session_id(
-        db, interview_session_id
-    )
-    blueprint = interview_blueprint_repository.get_by_session_id(
-        db, interview_session_id
-    )
-
-    if candidate or job or blueprint:
+    if interview.status != InterviewStatus.CREATED:
         raise HTTPException(
             status_code=400,
-            detail="Interview preparation has already been started for this session.",
+            detail="Interview preparation already started.",
         )
 
-    resume = resume_repository.get_by_session_id(
-        db, interview_session_id
-    )
-
-    if resume is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Resume not found.",
-        )
-
-    job_description = job_description_repository.get_by_session_id(
-        db, interview_session_id
-    )
-
-    if job_description is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Job description not found.",
-        )
-
-    # ---------------- Resume ----------------
-
-    resume_text = extract_text(Path(resume.storage_path))
-
-    candidate_profile = generate_candidate_profile(resume_text)
-
-    candidate_profile_repository.create(
-        db=db,
-        candidate_profile=CandidateProfileCreate(
-            interview_session_id=interview_session_id,
-            profile_json=candidate_profile.model_dump(),
-        ),
-    )
-
-    # Temporary due to Gemini free-tier RPM
-    time.sleep(60)
-
-    # ---------------- Job Description ----------------
-
-    job_description_text = extract_text(
-        Path(job_description.storage_path)
-    )
-
-    job_profile = generate_job_profile(job_description_text)
-
-    job_profile_repository.create(
-        db=db,
-        job_profile=JobProfileCreate(
-            interview_session_id=interview_session_id,
-            profile_json=job_profile.model_dump(),
-        ),
-    )
-
-    # Temporary due to Gemini free-tier RPM
-    time.sleep(60)
-
-    # ---------------- Blueprint ----------------
-
-    blueprint = generate_interview_blueprint(
-        candidate_profile=candidate_profile,
-        job_profile=job_profile,
-        duration_minutes=interview.planned_duration_minutes,
-        difficulty=interview.difficulty,
-    )
-
-    interview_blueprint_repository.create(
-        db=db,
-        blueprint=InterviewBlueprintCreate(
-            interview_session_id=interview_session_id,
-            blueprint_json=blueprint.model_dump(),
-            model_used=settings.gemini_model,
-        ),
-    )
-
+    # Immediately lock the interview by updating status
     interview_repository.update_status(
         db=db,
         interview_session_id=interview_session_id,
-        new_status=InterviewStatus.READY,
+        new_status=InterviewStatus.PARSING,
     )
 
-    return {
-        "Message": "Interview Session Started Successfully"
-    }
+    try:
+
+        resume = resume_repository.get_by_session_id(
+            db, interview_session_id
+        )
+
+        if resume is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Resume not found.",
+            )
+
+        job_description = job_description_repository.get_by_session_id(
+            db, interview_session_id
+        )
+
+        if job_description is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Job description not found.",
+            )
+
+        # ---------------- Resume ----------------
+
+        resume_text = extract_text(Path(resume.storage_path))
+
+        candidate_profile = generate_candidate_profile(resume_text)
+
+        candidate_profile_repository.create(
+            db=db,
+            candidate_profile=CandidateProfileCreate(
+                interview_session_id=interview_session_id,
+                profile_json=candidate_profile.model_dump(),
+            ),
+        )
+
+        # Temporary due to Gemini free-tier RPM
+        time.sleep(60)
+
+        # ---------------- Job Description ----------------
+
+        job_description_text = extract_text(
+            Path(job_description.storage_path)
+        )
+
+        job_profile = generate_job_profile(job_description_text)
+
+        job_profile_repository.create(
+            db=db,
+            job_profile=JobProfileCreate(
+                interview_session_id=interview_session_id,
+                profile_json=job_profile.model_dump(),
+            ),
+        )
+
+        # Temporary due to Gemini free-tier RPM
+        time.sleep(60)
+
+        # ---------------- Blueprint ----------------
+
+        blueprint = generate_interview_blueprint(
+            candidate_profile=candidate_profile,
+            job_profile=job_profile,
+            duration_minutes=interview.planned_duration_minutes,
+            difficulty=interview.difficulty,
+        )
+
+        interview_blueprint_repository.create(
+            db=db,
+            blueprint=InterviewBlueprintCreate(
+                interview_session_id=interview_session_id,
+                blueprint_json=blueprint.model_dump(),
+                model_used=settings.gemini_model,
+            ),
+        )
+
+        interview_repository.update_status(
+            db=db,
+            interview_session_id=interview_session_id,
+            new_status=InterviewStatus.READY,
+        )
+
+        return {
+            "Message": "Interview Session Started Successfully"
+        }
+    except Exception as e:
+        # If any unexpected exception occurs during preparation,
+        # set status back to CREATED and raise.
+        interview_repository.update_status(
+            db=db,
+            interview_session_id=interview_session_id,
+            new_status=InterviewStatus.CREATED,
+        )
+        raise e
 
 def begin_interview(
     db: Session,
@@ -177,7 +185,7 @@ def begin_interview(
             detail="Interview session not found.",
         )
 
-    if interview.status != InterviewStatus.READY:
+    if interview.status not in [InterviewStatus.READY, InterviewStatus.IN_PROGRESS]:
         raise HTTPException(
             status_code=400,
             detail="Interview is not ready to begin.",
@@ -205,11 +213,12 @@ def begin_interview(
             detail="Interview is already in progress.",
         )
 
-    interview_repository.update_status(
-        db=db,
-        interview_session_id=interview_session_id,
-        new_status=InterviewStatus.IN_PROGRESS,
-    )
+    if interview.status == InterviewStatus.READY:
+        interview_repository.update_status(
+            db=db,
+            interview_session_id=interview_session_id,
+            new_status=InterviewStatus.IN_PROGRESS,
+        )
 
     sections = blueprint.blueprint_json["sections"]
 
