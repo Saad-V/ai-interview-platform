@@ -60,26 +60,28 @@ export default function FileDropZone({
 
   return (
     <div className="w-full">
-      <label className="block text-sm font-medium text-text-secondary mb-2.5">
-        {label}
-      </label>
+      {label && (
+        <label className="block text-sm font-medium text-text-secondary mb-3">
+          {label}
+        </label>
+      )}
 
       <motion.div
         onClick={handleClick}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        whileHover={!file && !disabled ? { scale: 1.01 } : undefined}
+        whileHover={!file && !disabled ? { scale: 1.01, borderColor: 'rgba(124, 58, 237, 0.3)' } : undefined}
         whileTap={!file && !disabled ? { scale: 0.99 } : undefined}
         className={`
-          relative rounded-xl border-2 border-dashed transition-all duration-300
+          relative rounded-lg border-2 border-dashed transition-all duration-300
           ${isDragging
-            ? 'border-primary bg-primary/8 scale-[1.02]'
+            ? 'border-primary bg-primary/10 scale-[1.02] shadow-lg shadow-primary/20'
             : file
-              ? 'border-success/30 bg-success/5'
+              ? 'border-success/40 bg-success/8 shadow-sm shadow-success/10'
               : disabled
-                ? 'border-border-subtle bg-surface/40 cursor-not-allowed opacity-50'
-                : 'border-border hover:border-primary/40 bg-surface/20 hover:bg-surface/40 cursor-pointer'
+                ? 'border-border-subtle/50 bg-surface/30 cursor-not-allowed opacity-40'
+                : 'border-border/60 bg-surface/30 hover:bg-surface/50 cursor-pointer hover:shadow-sm hover:shadow-primary/10'
           }
         `}
       >
@@ -93,52 +95,71 @@ export default function FileDropZone({
         />
 
         {file ? (
-          <div className="flex items-center gap-4 p-5">
-            <div className="w-11 h-11 rounded-lg bg-success/10 border border-success/20 flex items-center justify-center shrink-0">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex items-center gap-4 p-6"
+          >
+            <motion.div
+              animate={{ scale: [1, 1.05, 1] }}
+              transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
+              className="w-12 h-12 rounded-lg bg-success/15 border border-success/30 flex items-center justify-center shrink-0"
+            >
               <CheckCircle2 className="w-5 h-5 text-success" />
-            </div>
+            </motion.div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-text-primary truncate">
+              <p className="text-sm font-semibold text-text-primary truncate">
                 {file.name}
               </p>
-              <p className="text-xs text-text-muted mt-0.5">
+              <p className="text-xs text-text-muted mt-1">
                 {formatSize(file.size)}
               </p>
             </div>
             {!disabled && (
-              <button
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   onClear();
                 }}
-                className="p-2 rounded-lg hover:bg-danger/10 text-text-muted hover:text-danger transition-colors"
+                className="p-2 rounded-lg hover:bg-danger/15 text-text-muted hover:text-danger transition-all"
               >
                 <X className="w-4 h-4" />
-              </button>
+              </motion.button>
             )}
-          </div>
+          </motion.div>
         ) : (
-          <div className="flex flex-col items-center gap-3 py-10 px-4">
+          <div className="flex flex-col items-center gap-4 py-12 px-4">
             <motion.div
-              animate={isDragging ? { y: -4, scale: 1.1 } : { y: 0, scale: 1 }}
-              transition={{ type: 'spring', stiffness: 300 }}
-              className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center"
+              animate={isDragging ? { y: -5, scale: 1.15 } : { y: 0, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+              className="relative"
             >
-              {isDragging ? (
-                <FileText className="w-6 h-6 text-primary" />
-              ) : (
-                <Upload className="w-6 h-6 text-primary" />
-              )}
+              <motion.div
+                animate={isDragging ? { opacity: 1, scale: 1.2 } : { opacity: 0, scale: 1 }}
+                className="absolute inset-0 w-14 h-14 rounded-lg bg-primary/20 blur-lg"
+              />
+              <div className="w-14 h-14 rounded-lg bg-primary/12 border border-primary/25 flex items-center justify-center relative">
+                {isDragging ? (
+                  <FileText className="w-7 h-7 text-primary" />
+                ) : (
+                  <Upload className="w-7 h-7 text-primary/70" />
+                )}
+              </div>
             </motion.div>
-            <div className="text-center">
-              <p className="text-sm text-text-secondary font-medium">
-                {isDragging ? 'Drop your file here' : 'Drag and drop or click to upload'}
+            <motion.div
+              animate={isDragging ? { scale: 1.05 } : { scale: 1 }}
+              className="text-center"
+            >
+              <p className="text-sm font-semibold text-text-primary">
+                {isDragging ? 'Drop here to upload' : 'Drag and drop your file'}
               </p>
-              <p className="text-xs text-text-muted mt-1.5">
-                PDF, DOC, DOCX, or TXT
+              <p className="text-xs text-text-muted mt-2">
+                or click to browse • PDF, DOC, DOCX, or TXT
               </p>
-            </div>
+            </motion.div>
           </div>
         )}
       </motion.div>
