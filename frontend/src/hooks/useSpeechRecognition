@@ -1,0 +1,86 @@
+import { useEffect, useRef, useState } from "react";
+
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
+
+export function useSpeechRecognition() {
+  const recognitionRef = useRef<any>(null);
+
+  const [isSupported, setIsSupported] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState("");
+
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setIsSupported(false);
+      return;
+    }
+
+    setIsSupported(true);
+
+    const recognition = new SpeechRecognition();
+
+    recognition.lang = "en-US";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+    };
+
+    recognition.onresult = (event: any) => {
+      let finalTranscript = "";
+
+      for (let i = 0; i < event.results.length; i++) {
+        finalTranscript += event.results[i][0].transcript;
+      }
+
+      setTranscript(finalTranscript);
+    };
+
+    recognitionRef.current = recognition;
+  }, []);
+
+  const startListening = () => {
+    if (!recognitionRef.current) return;
+
+    setTranscript("");
+
+    recognitionRef.current.start();
+  };
+
+  const stopListening = () => {
+    if (!recognitionRef.current) return;
+
+    recognitionRef.current.stop();
+  };
+
+  const clearTranscript = () => {
+    setTranscript("");
+  };
+
+  return {
+    transcript,
+    isListening,
+    isSupported,
+    startListening,
+    stopListening,
+    clearTranscript,
+  };
+}

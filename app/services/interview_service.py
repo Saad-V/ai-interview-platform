@@ -1,28 +1,24 @@
 import uuid
-import time
 from pathlib import Path
 from fastapi import HTTPException
-from sqlalchemy import extract
 from sqlalchemy.orm import Session
-from app.core.enums import InterviewDifficulty
 from app.models.interview_session import InterviewSession
 from app.repositories.candidate_profile_repository import CandidateProfileRepository
 from app.repositories.interview_blueprint_repository import InterviewBlueprintRepository
 from app.repositories.job_profile_repository import JobProfileRepository
-from app.schemas import interview_session
 from app.schemas.interview_blueprint import InterviewBlueprintCreate
 from app.schemas.interview_session import InterviewSessionCreate
 from app.repositories.interview_repository import InterviewRepository
 from app.repositories.resume_repository import ResumeRepository
 from app.repositories.job_description_repository import JobDescriptionRepository
 from app.core.config import settings
-from app.schemas.candidate_profile import CandidateProfileCreate, CandidateProfileResponse
-from app.schemas.job_profile import JobProfileCreate, JobProfileResponse
+from app.schemas.candidate_profile import CandidateProfileCreate
+from app.schemas.job_profile import JobProfileCreate
 from app.services.candidate_profile_service import generate_candidate_profile
 from app.services.interview_blueprint_service import generate_interview_blueprint
 from app.services.job_profile_service import generate_job_profile
 from app.services.document_parser_service import extract_text
-from app.core.enums import InterviewDifficulty, InterviewStatus
+from app.core.enums import InterviewStatus
 from app.repositories.conversation_turn import ConversationTurnRepository
 from app.schemas.interview_runtime_schema import QuestionResponse
 from app.services.answer_evaluation_service import evaluate_answer
@@ -111,9 +107,6 @@ def start_interview(
             ),
         )
 
-        # Temporary due to Gemini free-tier RPM
-        time.sleep(60)
-
         # ---------------- Job Description ----------------
 
         job_description_text = extract_text(
@@ -129,9 +122,6 @@ def start_interview(
                 profile_json=job_profile.model_dump(),
             ),
         )
-
-        # Temporary due to Gemini free-tier RPM
-        time.sleep(60)
 
         # ---------------- Blueprint ----------------
 

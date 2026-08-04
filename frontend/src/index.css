@@ -528,6 +528,95 @@ input[type="range"]:disabled {
   background: rgba(16, 185, 129, 0.05);
 }
 
+/* ── AI Blob Animations ── */
+
+@keyframes blob-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+@keyframes blob-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes blob-ripple {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes blob-rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes blob-glow-breathe {
+  0%, 100% { box-shadow: 0 0 40px rgba(124, 58, 237, 0.15), 0 0 80px rgba(124, 58, 237, 0.05); }
+  50% { box-shadow: 0 0 50px rgba(124, 58, 237, 0.25), 0 0 100px rgba(124, 58, 237, 0.08); }
+}
+
+@keyframes blob-glow-speak {
+  0%, 100% { box-shadow: 0 0 50px rgba(124, 58, 237, 0.3), 0 0 100px rgba(167, 139, 250, 0.12); }
+  50% { box-shadow: 0 0 70px rgba(124, 58, 237, 0.45), 0 0 120px rgba(167, 139, 250, 0.2); }
+}
+
+@keyframes blob-glow-listen {
+  0%, 100% { box-shadow: 0 0 40px rgba(16, 185, 129, 0.2), 0 0 80px rgba(16, 185, 129, 0.06); }
+  50% { box-shadow: 0 0 60px rgba(16, 185, 129, 0.35), 0 0 100px rgba(16, 185, 129, 0.12); }
+}
+
+.blob-base {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%,
+    rgba(167, 139, 250, 0.5) 0%,
+    rgba(124, 58, 237, 0.6) 40%,
+    rgba(109, 40, 217, 0.8) 70%,
+    rgba(76, 29, 149, 0.9) 100%
+  );
+  position: relative;
+}
+
+.blob-idle {
+  animation: blob-breathe 4s ease-in-out infinite, blob-glow-breathe 4s ease-in-out infinite;
+}
+
+.blob-speaking {
+  animation: blob-pulse 1.6s ease-in-out infinite, blob-glow-speak 1.6s ease-in-out infinite;
+}
+
+.blob-listening {
+  animation: blob-breathe 2.5s ease-in-out infinite, blob-glow-listen 2.5s ease-in-out infinite;
+}
+
+.blob-thinking .blob-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--color-accent);
+  border-right-color: var(--color-primary);
+  animation: blob-rotate 1.2s linear infinite;
+}
+
+/* Ripple rings for listening state */
+.blob-ripple-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(16, 185, 129, 0.4);
+  animation: blob-ripple 2s ease-out infinite;
+}
+
+.blob-ripple-ring:nth-child(2) {
+  animation-delay: 0.6s;
+}
+
+.blob-ripple-ring:nth-child(3) {
+  animation-delay: 1.2s;
+}
+
 /* ── Smooth transitions for all interactive elements ── */
 @media (prefers-reduced-motion: no-preference) {
   * {
