@@ -99,7 +99,7 @@ def start_interview(
 
         candidate_profile = generate_candidate_profile(resume_text)
 
-        candidate_profile_repository.create(
+        candidate_profile_repository.create_or_update(
             db=db,
             candidate_profile=CandidateProfileCreate(
                 interview_session_id=interview_session_id,
@@ -115,7 +115,7 @@ def start_interview(
 
         job_profile = generate_job_profile(job_description_text)
 
-        job_profile_repository.create(
+        job_profile_repository.create_or_update(
             db=db,
             job_profile=JobProfileCreate(
                 interview_session_id=interview_session_id,
@@ -132,7 +132,7 @@ def start_interview(
             difficulty=interview.difficulty,
         )
 
-        interview_blueprint_repository.create(
+        interview_blueprint_repository.create_or_update(
             db=db,
             blueprint=InterviewBlueprintCreate(
                 interview_session_id=interview_session_id,
@@ -319,9 +319,10 @@ def submit_answer(
                 detail="Interview preparation data is missing for report generation.",
             )
 
+        total_awarded = sum(turn.evaluation_json.get("awarded_score", 0) for turn in conversation_turns)
+        total_max = sum(turn.evaluation_json.get("maximum_score", 0) for turn in conversation_turns)
+
         report = generate_interview_report(
-            candidate_profile=candidate_profile_entry.profile_json,
-            job_profile=job_profile_entry.profile_json,
             blueprint=blueprint.blueprint_json,
             conversation_turns=[
                 {
@@ -330,13 +331,15 @@ def submit_answer(
                 }
                 for turn in conversation_turns
             ],
+            total_awarded_score=total_awarded,
+            total_maximum_score=total_max,
         )
 
         report_repository.create(
             db=db,
             report=ReportCreate(
                 interview_session_id=interview_session_id,
-                overall_score=report.overall_score,
+                overall_score=report.overall_percentage,
                 report_json=report.model_dump(),
                 pdf_storage_path=None,
             ),

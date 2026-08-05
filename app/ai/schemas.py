@@ -79,12 +79,29 @@ class InterviewBlueprintSchema(BaseModel):
 
 
 class InterviewReportSchema(BaseModel):
-    overall_score: float
-    technical_score: float
-    communication_score: float
+    overall_percentage: float
+    technical_percentage: float
+    communication_percentage: float
 
     strengths: list[str]
     areas_for_improvement: list[str]
 
     summary: str
     recommendation: str
+
+
+class AnswerEvaluationSchema(BaseModel):
+    awarded_score: int
+    maximum_score: int
+
+    technical_percentage: float
+    communication_percentage: float
+
+    feedback: str
+
+    strengths: list[str] = Field(default_factory=list)
+    weaknesses: list[str] = Field(default_factory=list)
+
+    missing_topics: list[str] = Field(default_factory=list)
+
+    suggested_improvement: str
