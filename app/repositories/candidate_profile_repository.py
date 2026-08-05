@@ -24,6 +24,26 @@ class CandidateProfileRepository:
             raise
         return candidate_profile_model
 
+    def create_or_update(
+        self,
+        db: Session,
+        candidate_profile: CandidateProfileCreate,
+    ) -> CandidateProfile:
+        existing = self.get_by_session_id(
+            db=db,
+            interview_session_id=candidate_profile.interview_session_id,
+        )
+        if existing:
+            existing.profile_json = candidate_profile.profile_json
+            try:
+                db.commit()
+                db.refresh(existing)
+            except Exception:
+                db.rollback()
+                raise
+            return existing
+        return self.create(db=db, candidate_profile=candidate_profile)
+
     def get_by_session_id(
         self,
         db: Session,

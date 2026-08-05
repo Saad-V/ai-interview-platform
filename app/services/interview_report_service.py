@@ -8,17 +8,17 @@ from app.ai.schemas import InterviewReportSchema
 
 def generate_interview_report(
     *,
-    candidate_profile: dict,
-    job_profile: dict,
     blueprint: dict,
     conversation_turns: list[dict],
+    total_awarded_score: int,
+    total_maximum_score: int,
 ) -> InterviewReportSchema:
 
     prompt = build_interview_report_prompt(
-        candidate_profile=candidate_profile,
-        job_profile=job_profile,
         blueprint=blueprint,
         conversation_turns=conversation_turns,
+        total_awarded_score=total_awarded_score,
+        total_maximum_score=total_maximum_score,
     )
 
     return generate_structured_output(

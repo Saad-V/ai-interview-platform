@@ -29,6 +29,27 @@ class InterviewBlueprintRepository:
 
         return blueprint_model
 
+    def create_or_update(
+        self,
+        db: Session,
+        blueprint: InterviewBlueprintCreate,
+    ) -> InterviewBlueprint:
+        existing = self.get_by_session_id(
+            db=db,
+            interview_session_id=blueprint.interview_session_id,
+        )
+        if existing:
+            existing.blueprint_json = blueprint.blueprint_json
+            existing.model_used = blueprint.model_used
+            try:
+                db.commit()
+                db.refresh(existing)
+            except Exception:
+                db.rollback()
+                raise
+            return existing
+        return self.create(db=db, blueprint=blueprint)
+
     def get_by_session_id(
         self,
         db: Session,

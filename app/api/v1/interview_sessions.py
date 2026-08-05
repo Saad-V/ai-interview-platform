@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.db.dependencies import get_db
+from app.schemas.interview_runtime_schema import SubmitAnswerRequest
 from app.schemas.interview_session import (
     InterviewSessionCreate,
     InterviewSessionResponse,
@@ -12,7 +13,6 @@ from app.services.interview_service import begin_interview as begin_interview_se
 from app.services.interview_service import create_interview
 from app.services.interview_service import start_interview
 from app.services.interview_service import submit_answer as submit_answer_service
-from app.schemas.interview_runtime_schema import SubmitAnswerRequest
 
 router = APIRouter(
     prefix="/interview-sessions",
@@ -54,11 +54,11 @@ def begin_interview(
 @router.post("/{session_id}/answer")
 def submit_answer(
     session_id: uuid.UUID,
-    request: SubmitAnswerRequest,
+    submit_answer_request: SubmitAnswerRequest,
     db: Session = Depends(get_db),
 ):
     return submit_answer_service(
         db=db,
         interview_session_id=session_id,
-        answer=request.answer,
+        answer=submit_answer_request.answer,
     )

@@ -30,7 +30,12 @@ export const interviewService = {
   submitAnswer: async (sessionId: string, answer: string): Promise<SubmitAnswerResponse> => {
     const response = await api.post<SubmitAnswerResponse>(
       `/interview-sessions/${sessionId}/answer`,
-      { answer }
+      { answer },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
     );
     return response.data;
   },

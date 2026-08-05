@@ -24,6 +24,26 @@ class JobProfileRepository:
             raise
         return job_profile_model
 
+    def create_or_update(
+        self,
+        db: Session,
+        job_profile: JobProfileCreate,
+    ) -> JobProfile:
+        existing = self.get_by_session_id(
+            db=db,
+            interview_session_id=job_profile.interview_session_id,
+        )
+        if existing:
+            existing.profile_json = job_profile.profile_json
+            try:
+                db.commit()
+                db.refresh(existing)
+            except Exception:
+                db.rollback()
+                raise
+            return existing
+        return self.create(db=db, job_profile=job_profile)
+
     def get_by_session_id(
         self,
         db: Session,
