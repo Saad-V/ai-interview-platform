@@ -77,10 +77,7 @@ export function useSpeechRecognition(): SpeechRecognitionResult {
       setAudioLevel(0);
     };
 
-    recognitionRef.current = recognition;
-    recognition.start();
-
-    // Start AudioContext for volume level tracking
+    // Start AudioContext for volume level tracking first to prevent mic access conflict
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -115,8 +112,20 @@ export function useSpeechRecognition(): SpeechRecognitionResult {
       };
       
       updateLevel();
+
+      // Now start the speech recognition
+      recognitionRef.current = recognition;
+      recognition.start();
+
     } catch (err) {
-      console.error("Error accessing microphone for audio level:", err);
+      console.error("Error accessing microphone:", err);
+      // Even if visualizer fails, try to start recognition
+      recognitionRef.current = recognition;
+      try {
+          recognition.start();
+      } catch (e) {
+          console.error("Failed to start recognition:", e);
+      }
     }
   }, []);
 
