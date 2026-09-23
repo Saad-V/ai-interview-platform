@@ -2,6 +2,8 @@ import uuid
 from pathlib import Path
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+
+from google.genai import errors
 from app.models.interview_session import InterviewSession
 from app.repositories.candidate_profile_repository import CandidateProfileRepository
 from app.repositories.interview_blueprint_repository import InterviewBlueprintRepository
@@ -158,7 +160,15 @@ def start_interview(
             interview_session_id=interview_session_id,
             new_status=InterviewStatus.CREATED,
         )
-        raise e
+
+        error_text = str(e).upper()
+        if isinstance(e, errors.ServerError) or "503" in error_text or "UNAVAILABLE" in error_text:
+            raise HTTPException(
+                status_code=503,
+                detail="AI model is temporarily unavailable. Please try again later.",
+            ) from e
+
+        raise
 
 def begin_interview(
     db: Session,
