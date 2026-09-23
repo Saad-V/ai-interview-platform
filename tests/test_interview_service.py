@@ -1,8 +1,12 @@
+import time
 import uuid
 from types import SimpleNamespace
 
+from fastapi import HTTPException
+from google.genai import errors
+
 from app.api.v1 import interview_sessions
-from app.core.enums import InterviewStatus
+from app.core.enums import InterviewDifficulty, InterviewStatus
 from app.schemas.interview_blueprint import InterviewBlueprintCreate
 from app.schemas.interview_runtime_schema import SubmitAnswerRequest
 from app.services import interview_service
@@ -104,7 +108,8 @@ def test_start_interview_sets_model_used_for_blueprint(monkeypatch):
         "get_by_id",
         lambda db, interview_session_id: SimpleNamespace(
             planned_duration_minutes=30,
-            difficulty=interview_service.InterviewDifficulty.MEDIUM,
+            difficulty=InterviewDifficulty.MEDIUM,
+            status=InterviewStatus.CREATED,
         ),
     )
     monkeypatch.setattr(
@@ -148,7 +153,7 @@ def test_start_interview_sets_model_used_for_blueprint(monkeypatch):
         "generate_interview_blueprint",
         lambda **kwargs: SimpleNamespace(model_dump=lambda: {"sections": []}),
     )
-    monkeypatch.setattr(interview_service.time, "sleep", lambda _: None)
+    monkeypatch.setattr(time, "sleep", lambda _: None)
 
     captured = {}
 
@@ -183,3 +188,43 @@ def test_start_interview_sets_model_used_for_blueprint(monkeypatch):
     assert result == {"Message": "Interview Session Started Successfully"}
     assert isinstance(captured["blueprint"], InterviewBlueprintCreate)
     assert captured["blueprint"].model_used == interview_service.settings.gemini_model
+
+
+def test_start_interview_returns_503_when_ai_service_is_unavailable(monkeypatch):
+    session_id = uuid.uuid4()
+
+    monkeypatch.setattr(
+        interview_service.interview_repository,
+        "get_by_id",
+        lambda db, interview_session_id: SimpleNamespace(
+            planned_duration_minutes=30,
+            difficulty=InterviewDifficulty.MEDIUM,
+            status=InterviewStatus.CREATED,
+        ),
+    )
+    monkeypatch.setattr(
+        interview_service.resume_repository,
+        "get_by_session_id",
+        lambda db, interview_session_id: SimpleNamespace(storage_path="resume.pdf"),
+    )
+    monkeypatch.setattr(
+        interview_service.job_description_repository,
+        "get_by_session_id",
+        lambda db, interview_session_id: SimpleNamespace(storage_path="job_description.pdf"),
+    )
+    monkeypatch.setattr(interview_service, "extract_text", lambda path: "sample text")
+    monkeypatch.setattr(
+        interview_service,
+        "generate_candidate_profile",
+        lambda text: (_ for _ in ()).throw(
+            errors.ServerError(503, {"error": {"code": 503, "message": "high demand", "status": "UNAVAILABLE"}}, None)
+        ),
+    )
+    monkeypatch.setattr(interview_service.interview_repository, "update_status", lambda **kwargs: None)
+
+    try:
+        interview_service.start_interview(db=object(), interview_session_id=session_id)
+        assert False, "Expected HTTPException"
+    except HTTPException as exc:
+        assert exc.status_code == 503
+        assert "temporarily unavailable" in exc.detail.lower()

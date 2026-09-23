@@ -29,6 +29,18 @@ def _client_for_attempt(attempt: int) -> genai.Client:
     return secondary_client
 
 
+def _is_retryable_503(exc: Exception) -> bool:
+    status_value = getattr(exc, "status", None)
+    if isinstance(status_value, int):
+        return status_value == 503
+    if isinstance(status_value, str):
+        normalized = status_value.strip().upper()
+        if normalized in {"503", "UNAVAILABLE"}:
+            return True
+    error_text = str(exc).upper()
+    return "503" in error_text and "UNAVAILABLE" in error_text
+
+
 def _try_generate(
     *,
     client: genai.Client,
@@ -47,7 +59,21 @@ def _try_generate(
             temperature=0.2,
         ),
     )
-    return response.parsed
+
+    if response.parsed is not None:
+        return response.parsed
+
+    raw_text = getattr(response, "text", None)
+    if raw_text:
+        try:
+            return response_schema.model_validate_json(raw_text)
+        except Exception:
+            try:
+                return response_schema.model_validate(json.loads(raw_text))
+            except Exception:
+                pass
+
+    raise ValueError("Gemini response did not contain a valid parsed model or JSON payload.")
 
 
 def generate_structured_output(
@@ -72,7 +98,7 @@ def generate_structured_output(
                 )
             except errors.ServerError as e:
                 last_exception = e
-                if e.status_code == 503:
+                if _is_retryable_503(e):
                     if attempt < MAX_RETRIES - 1:
                         delay = INITIAL_DELAY * (2 ** attempt)
                         print(
