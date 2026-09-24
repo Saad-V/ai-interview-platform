@@ -1,445 +1,266 @@
-#  AI Interview Platform Backend
+# AiiN — AI-Powered Mock Interview Platform
 
-An AI-powered interview backend built with **FastAPI**, **PostgreSQL**, **SQLAlchemy**, and **Google Gemini**, capable of generating personalized interview plans, evaluating candidate responses, and producing structured interview reports.
+AiiN turns a resume and a job description into a full, adaptive mock interview — conducted and scored end-to-end by AI. Upload the two documents, and the system builds a candidate profile, generates a tailored interview blueprint, runs the interview question-by-question, evaluates each answer in real time, and produces a final scored report with recommendations.
 
-The system simulates a complete technical interview lifecycle by leveraging Large Language Models (LLMs) while maintaining a clean, production-inspired backend architecture.
-
----
-
-## ✨ Features
-
-### 📄 Intelligent Resume & Job Description Analysis
-- Upload candidate resume and job description.
-- Automatically extract structured candidate and job profiles using Gemini.
-- Store AI-generated profiles in PostgreSQL.
-
-### 🧠 AI Interview Blueprint Generation
-- Dynamically generates interview sections and questions based on:
-  - Candidate profile
-  - Job requirements
-  - Difficulty level
-  - Interview duration
-- Includes:
-  - Expected topics
-  - Evaluation criteria
-  - Follow-up questions
-  - Maximum score per question
-
-### 🎤 AI Interview Runtime
-- Begins interview from generated blueprint.
-- Delivers one question at a time.
-- Maintains interview state throughout the session.
-- Supports sequential interview flow.
-
-### 🤖 AI Answer Evaluation
-For every candidate response, Gemini evaluates:
-
-- Technical correctness
-- Communication quality
-- Missing concepts
-- Strengths
-- Weaknesses
-- Improvement suggestions
-- Numerical score
-
-### 📊 Final Interview Report
-Generates a comprehensive report including:
-
-- Overall score
-- Technical score
-- Communication score
-- Candidate strengths
-- Areas for improvement
-- Overall summary
-- Hiring recommendation
+**Stack:** FastAPI · PostgreSQL (Neon) · SQLAlchemy · Google Gemini · React
 
 ---
 
-# 🏗 Architecture
+## Why This Project
 
-```
-                FastAPI REST API
-                        │
-        ┌───────────────┴───────────────┐
-        │                               │
-     Routers                        AI Services
-        │                               │
-        ▼                               ▼
-     Services  ─────────────► Gemini API
-        │
-        ▼
-   Repositories
-        │
-        ▼
- PostgreSQL Database
-```
-
-The project follows a layered architecture:
-
-- API Layer
-- Service Layer
-- Repository Layer
-- Persistence Layer
-- AI Layer
-
-This separation keeps business logic independent from database operations and AI interactions.
+Most "AI interview" tools ask generic questions. AiiN builds the interview *from the actual resume and job description* — every question is grounded in the candidate's real background and the role's real requirements, and every evaluation accounts for how the answer was given (including tolerating speech-to-text transcription artifacts, e.g. "UART" transcribed as "you are tea," so candidates aren't penalized for STT noise).
 
 ---
 
-# ⚙ Tech Stack
+## How It Works
 
-### Backend
+1. **Upload** — candidate submits a resume (PDF/DOCX) and a job description
+2. **Parse** — text is extracted and sent to Gemini to build structured `CandidateProfile` and `JobProfile` objects
+3. **Blueprint** — Gemini generates a full interview blueprint: sections, questions, and scoring criteria, tailored to the candidate–role match
+4. **Interview loop** — a single endpoint (`POST /{id}/answer`) drives the whole interview:
+   - The submitted answer is evaluated against that question's scoring criteria
+   - The turn (question, answer, evaluation) is persisted
+   - The service checks the blueprint for a next question:
+     - **If one exists**, it's returned immediately, the candidate keeps going
+     - **If none is left**, the same call triggers report generation instead: Gemini synthesizes the final report from every turn, the session is marked `COMPLETED`, and the report is returned in place of a next question
+   - This means there's no separate "end interview" step, the last answer and the report come back in one response
 
-- FastAPI
-- Python 3.11
-- SQLAlchemy ORM
-- Alembic
-- PostgreSQL
+```mermaid
+sequenceDiagram
+    participant FE as Frontend
+    participant API as API Routes
+    participant SVC as Services
+    participant AI as Gemini AI
+    participant DB as PostgreSQL
 
-### AI
+    FE->>API: Create session + upload resume/JD
+    API->>SVC: Validate & store
+    SVC->>DB: Persist session, resume, JD
 
-- Google Gemini API
-- Prompt Engineering
+    FE->>API: Start interview
+    SVC->>AI: Extract candidate + job profiles
+    AI-->>SVC: Structured profiles
+    SVC->>AI: Generate interview blueprint
+    AI-->>SVC: Questions + scoring criteria
+    SVC->>DB: Persist blueprint
+    SVC->>DB: status → READY
 
-### Storage
+    FE->>API: Begin interview
+    SVC->>DB: status → IN_PROGRESS
+    DB-->>FE: First question
 
-- PostgreSQL JSONB
-- Local File Storage
+    loop Until blueprint is exhausted
+        FE->>API: Submit answer
+        SVC->>AI: Evaluate answer against scoring criteria
+        AI-->>SVC: Score + feedback
+        SVC->>DB: Persist conversation turn
 
----
-
-# 🗄 Database Design
-
-The system consists of **8 normalized entities**.
-
-| Table | Purpose |
-|---------|----------|
-| interview_sessions | Tracks interview lifecycle |
-| resumes | Resume metadata |
-| job_descriptions | Job description metadata |
-| candidate_profiles | AI-generated candidate profile |
-| job_profiles | AI-generated job profile |
-| interview_blueprints | Generated interview plan |
-| conversation_turns | Every interview interaction |
-| reports | Final interview report |
-
----
-
-# 🔄 Interview Workflow
-
-```
-Create Interview Session
-        │
-        ▼
-Upload Resume + Job Description
-        │
-        ▼
-Generate Candidate Profile
-Generate Job Profile
-        │
-        ▼
-Generate Interview Blueprint
-        │
-        ▼
-Interview Ready
-        │
-        ▼
-Begin Interview
-        │
-        ▼
-Question 1
-        │
-        ▼
-Candidate Answer
-        │
-        ▼
-Gemini Evaluation
-        │
-        ▼
-Save Conversation Turn
-        │
-        ▼
-Repeat...
-        │
-        ▼
-Generate Final Report
-        │
-        ▼
-Interview Completed
+        alt Next question exists in blueprint
+            DB-->>FE: Next question
+        else No questions left
+            SVC->>AI: Generate final report from all turns
+            AI-->>SVC: Scores + strengths/weaknesses + recommendation
+            SVC->>DB: Persist report
+            SVC->>DB: status → COMPLETED
+            DB-->>FE: Final interview report
+        end
+    end
 ```
 
 ---
 
-# 📁 Project Structure
+## Architecture
 
+Layered architecture: routes stay thin, all business logic lives in services, all SQL is isolated in a repository layer.
+
+```mermaid
+graph TB
+    subgraph "Frontend"
+        FE["React Client"]
+    end
+    subgraph "API Layer"
+        MAIN["FastAPI App"]
+        R1["Interview Sessions"]
+        R2["Resumes"]
+        R3["Job Descriptions"]
+    end
+    subgraph "Service Layer"
+        IS["Interview Service"]
+        AI_SVCS["Profile / Blueprint / Evaluation / Report Services"]
+    end
+    subgraph "AI Layer"
+        LLM["Gemini Client — retries, fallback, key rotation"]
+    end
+    subgraph "Data Layer"
+        REPOS["Repositories"]
+        DB["PostgreSQL (Neon)"]
+    end
+
+    FE -->|HTTP| MAIN
+    MAIN --> R1 & R2 & R3
+    R1 --> IS
+    IS --> AI_SVCS
+    AI_SVCS --> LLM
+    IS --> REPOS --> DB
 ```
+
+**Interview state machine:**
+`CREATED → PARSING → READY → IN_PROGRESS → COMPLETED` (with a `FAILED` branch on error)
+
+---
+
+## Key Engineering Decisions
+
+| Decision | Why |
+|---|---|
+| **Structured AI output** (`response_schema` on every Gemini call) | Every AI response is validated against a Pydantic schema — no brittle regex parsing of free-form text |
+| **Model + key fallback chain** in the Gemini client | Retries with exponential backoff, falls back across models (`gemini-3.6-flash` → `gemini-3.5-flash` → `gemini-3.1-flash-lite`), and alternates API keys to survive rate limits and 503s |
+| **Repository pattern** | All SQL isolated from business logic — services never touch the DB directly |
+| **State machine on interview status** | Prevents invalid transitions (e.g. can't submit an answer to a completed interview) |
+| **STT-aware evaluation prompt** | Answer scoring explicitly discounts transcription artifacts instead of penalizing candidates for them |
+
+---
+
+## API Overview
+
+All endpoints are under `/api/v1/interview-sessions`.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/` | Create a new interview session (difficulty + duration) |
+| `POST` | `/{id}/resume` | Upload resume |
+| `POST` | `/{id}/job-description` | Upload job description |
+| `POST` | `/{id}/start` | Parse documents, generate profiles + blueprint |
+| `POST` | `/{id}/begin` | Begin the interview loop, get first question |
+| `POST` | `/{id}/answer` | Submit an answer, get evaluation + next question (or final report) |
+
+---
+## Project Structure
+
+```text
 app/
-│
-├── ai/
-│   ├── llm.py
-│   ├── prompts.py
-│   └── schemas.py
-│
-├── api/
-│   └── v1/
-│
-├── core/
-│
-├── models/
-│
-├── repositories/
-│
-├── schemas/
-│
-├── services/
-│
-├── storage/
-│
-└── main.py
+├── main.py                  # FastAPI app & router registration
+├── core/                    # Configuration & enums
+├── db/                      # Database setup & dependencies
+├── models/                  # SQLAlchemy database models
+├── schemas/                 # Pydantic request/response schemas
+├── repositories/            # Database queries & CRUD
+├── services/                # Business logic
+├── ai/                      # Gemini/LLM integration
+└── utils/                   # Utility functions
+
+---
+
+## Data Model
+
+Every entity hangs off a central `InterviewSession`, which tracks the interview's state machine (`status`, `difficulty`, `planned_duration_minutes`, `completed_at`). Every child table inherits `id`, `created_at`, `updated_at` from `BaseModel` on top of what's shown below.
+
+```mermaid
+erDiagram
+    InterviewSession ||--o| Resume : has
+    InterviewSession ||--o| JobDescription : has
+    InterviewSession ||--o| CandidateProfile : has
+    InterviewSession ||--o| JobProfile : has
+    InterviewSession ||--o| InterviewBlueprint : has
+    InterviewSession ||--o| Report : has
+    InterviewSession ||--|| ConversationTurn : has_many
+
+    InterviewSession {
+        uuid id PK
+        enum status
+        enum difficulty
+        int planned_duration_minutes
+        datetime completed_at
+    }
+
+    Resume {
+        uuid id PK
+        uuid interview_session_id FK
+        string original_filename
+        string storage_path
+        string mime_type
+        int file_size
+    }
+
+    JobDescription {
+        uuid id PK
+        uuid interview_session_id FK
+        string storage_path
+        string raw_text
+        string mime_type
+    }
+
+    CandidateProfile {
+        uuid id PK
+        uuid interview_session_id FK
+        jsonb profile_json
+    }
+
+    JobProfile {
+        uuid id PK
+        uuid interview_session_id FK
+        jsonb profile_json
+    }
+
+    InterviewBlueprint {
+        uuid id PK
+        uuid interview_session_id FK
+        jsonb blueprint_json
+        string model_used
+    }
+
+    ConversationTurn {
+        uuid id PK
+        uuid interview_session_id FK
+        int turn_number
+        jsonb exchange_json
+        jsonb evaluation_json
+    }
+
+    Report {
+        uuid id PK
+        uuid interview_session_id FK
+        float overall_score
+        jsonb report_json
+    }
 ```
 
----
-
-# 🧠 AI Pipeline
-
-The project uses Gemini four different times.
-
-## 1. Candidate Profile Generation
-
-Resume
-
-↓
-
-Structured Candidate Profile
+Design notes worth calling out to an interviewer:
+- **`CandidateProfile`, `JobProfile`, `InterviewBlueprint`, and `Report` all store their AI output as `jsonb`** rather than being normalized into columns — the shape of an AI-generated profile or blueprint can evolve without a migration, and Postgres's `jsonb` still lets you index/query into it if needed later.
+- **`InterviewBlueprint.model_used` is tracked per row** — since the Gemini client falls back across models, you always know which model actually generated a given interview's questions.
+- **`ConversationTurn` stores both `exchange_json` and `evaluation_json` separately** — the raw Q&A exchange is kept distinct from the AI's scoring of it, so re-evaluating an answer later wouldn't require re-storing the exchange.
 
 ---
 
-## 2. Job Profile Generation
-
-Job Description
-
-↓
-
-Structured Job Profile
-
----
-
-## 3. Interview Blueprint Generation
-
-Candidate Profile
-
-+
-
-Job Profile
-
-↓
-
-Interview Sections
-
-↓
-
-Questions
-
-↓
-
-Evaluation Criteria
-
----
-
-## 4. Interview Evaluation
-
-Question
-
-+
-
-Expected Topics
-
-+
-
-Candidate Answer
-
-↓
-
-Evaluation
-
-↓
-
-Stored Conversation Turn
-
----
-
-## 5. Interview Report
-
-Candidate Profile
-
-+
-
-Job Profile
-
-+
-
-Conversation History
-
-↓
-
-Final Interview Report
-
----
-
-# 📌 API Endpoints
-
-## Interview Sessions
-
-| Method | Endpoint |
-|---------|-----------|
-| POST | `/api/v1/interview-sessions` |
-| POST | `/api/v1/interview-sessions/{id}/start` |
-| POST | `/api/v1/interview-sessions/{id}/begin` |
-| POST | `/api/v1/interview-sessions/{id}/answer` |
-
----
-
-## Resume
-
-| Method | Endpoint |
-|---------|-----------|
-| POST | `/api/v1/resumes/upload` |
-
----
-
-## Job Description
-
-| Method | Endpoint |
-|---------|-----------|
-| POST | `/api/v1/job-descriptions/upload` |
-
----
-
-# 🚀 Getting Started
-
-## Clone Repository
+## Getting Started
 
 ```bash
-git clone https://github.com/Saad-V/AiiN.git
+# clone and install
+git clone https://github.com/Saad-V/ai-interview-platform.git
 cd ai-interview-platform
-```
-
-## Create Virtual Environment
-
-```bash
-python -m venv .venv
-```
-
-Windows
-
-```bash
-.venv\Scripts\activate
-```
-
-Linux/macOS
-
-```bash
-source .venv/bin/activate
-```
-
-## Install Dependencies
-
-```bash
 pip install -r requirements.txt
-```
 
----
+# configure environment
+cp .env.example .env
+# set DATABASE_URL, GEMINI_API_KEY, GEMINI_API_KEY_2
 
-## Environment Variables
-
-Create a `.env` file.
-
-```env
-DATABASE_URL=postgresql://username:password@localhost:5432/ai_interview
-GEMINI_API_KEY=YOUR_API_KEY
-GEMINI_MODEL=gemini-2.5-flash
-```
-
----
-
-## Run Alembic
-
-```bash
-alembic upgrade head
-```
-
----
-
-## Start Server
-
-```bash
+# run
 uvicorn app.main:app --reload
 ```
 
-Swagger UI
-
-```
-http://127.0.0.1:8000/docs
-```
+API docs are auto-generated by FastAPI at `/docs` once the server is running.
 
 ---
 
-# 🧪 Example Workflow
+## Tech Stack
 
-1. Create Interview Session
-2. Upload Resume
-3. Upload Job Description
-4. Start Interview Preparation
-5. Begin Interview
-6. Submit Candidate Answers
-7. Receive Final AI Report
+- **Backend:** FastAPI, SQLAlchemy, Pydantic / Pydantic Settings
+- **Database:** PostgreSQL (hosted on Neon)
+- **AI:** Google Gemini (structured output via `response_schema`)
+- **Document parsing:** PyMuPDF (PDF), python-docx (DOCX)
+- **Frontend:** React
 
 ---
 
-# 📈 Current Capabilities
-
-- AI Resume Parsing
-- AI Job Description Parsing
-- AI Interview Planning
-- AI Response Evaluation
-- Persistent Conversation Storage
-- AI Interview Reports
-- PostgreSQL Persistence
-- RESTful API
-- Layered Backend Architecture
-
----
-
-# 🔮 Future Enhancements
-
-- Voice-based Interview (Speech-to-Text / Text-to-Speech)
-- WebSocket Streaming
-- JWT Authentication & Authorization
-- Multi-user Support
-- PDF Report Generation
-- Cloud File Storage (AWS S3)
-- Docker & Kubernetes Deployment
-- Interview Analytics Dashboard
-- Email Report Delivery
-
----
-
-# 👨‍💻 Author
-
-**V Muhammed Saad Sabeel**
-
-Electronics & Telecommunication Engineering  
-AI • Backend Engineering • Edge AI • Embedded Systems
-
-GitHub: https://github.com/Saad-V
-
----
-
-## ⭐ Project Highlights
-
-- Production-inspired layered backend architecture
-- AI-powered interview orchestration
-- Structured LLM outputs using Pydantic schemas
-- Persistent interview lifecycle management
-- PostgreSQL + JSONB for flexible AI-generated data
-- Designed as an end-to-end AI interview backend for technical hiring
+Author
+V Muhammed Saad Sabeel
