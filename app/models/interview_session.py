@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum
+from sqlalchemy import DateTime, Enum, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import InterviewDifficulty, InterviewStatus
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
     from app.models.report import Report
     from app.models.interview_blueprint import InterviewBlueprint
     from app.models.conversation_turn import ConversationTurn
+    from app.models.user import User
 
 class InterviewSession(BaseModel):
     __tablename__ = "interview_sessions"
@@ -30,7 +32,13 @@ class InterviewSession(BaseModel):
     planned_duration_minutes: Mapped[int] = mapped_column(nullable=False)
 
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
 
+    user: Mapped["User | None"] = relationship(back_populates="interview_sessions")
     resume: Mapped["Resume"] = relationship(back_populates="interview_session", uselist=False, cascade="all, delete-orphan")
     job_description: Mapped["JobDescription"] = relationship(back_populates="interview_session", uselist=False, cascade="all, delete-orphan")
     candidate_profile: Mapped["CandidateProfile"] = relationship(back_populates="interview_session", uselist=False, cascade="all, delete-orphan")

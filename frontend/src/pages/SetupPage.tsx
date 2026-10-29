@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Briefcase,
-  Gauge,
   ArrowRight,
   Loader2,
   AlertCircle,
@@ -108,13 +106,14 @@ export default function SetupPage() {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="mb-16"
+          className="mb-10"
         >
-          <h1 className="text-4xl md:text-5xl font-bold mb-3">
-            Set Up Your <span className="gradient-text">Interview</span>
+          <p className="eyebrow text-text-muted">Start with the context</p>
+          <h1 className="editorial mt-3 text-5xl md:text-6xl">
+            Set up your interview
           </h1>
-          <p className="text-text-secondary text-lg">
-            Upload your documents and choose your interview settings
+          <p className="mt-3 max-w-xl text-text-secondary">
+            Add your resume and the job description. We&apos;ll shape a practice session around both.
           </p>
         </motion.div>
 
@@ -131,22 +130,17 @@ export default function SetupPage() {
             transition={{ duration: 0.6, ease: 'easeOut' }}
             className="space-y-4"
           >
-            <div className="flex items-center gap-2 mb-6">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-                <Briefcase className="w-4 h-4 text-primary" />
-              </div>
-              <h2 className="text-xl font-semibold text-text-primary">Documents</h2>
+            <div className="mb-6">
+              <p className="eyebrow text-text-muted">01 — Your materials</p>
+              <h2 className="editorial mt-2 text-3xl">Two documents, one tailored interview.</h2>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Resume */}
-              <div className="card p-8">
-                <div className="flex items-baseline gap-2 mb-6">
-                  <h3 className="text-lg font-semibold text-text-primary">Resume</h3>
-                  <span className="badge badge-primary text-xs">Required</span>
-                </div>
+              <div className="card p-6">
+                <h3 className="mb-4 text-sm font-semibold text-text-primary">Resume <span className="text-text-muted">· Required</span></h3>
                 <FileDropZone
-                  label=""
+                  label="Upload your resume"
                   file={resumeFile}
                   onFileSelect={setResumeFile}
                   onClear={() => setResumeFile(null)}
@@ -155,13 +149,10 @@ export default function SetupPage() {
               </div>
 
               {/* Job Description */}
-              <div className="card p-8">
-                <div className="flex items-baseline gap-2 mb-6">
-                  <h3 className="text-lg font-semibold text-text-primary">Job Description</h3>
-                  <span className="badge badge-primary text-xs">Required</span>
-                </div>
+              <div className="card p-6">
+                <h3 className="mb-4 text-sm font-semibold text-text-primary">Job description <span className="text-text-muted">· Required</span></h3>
                 <FileDropZone
-                  label=""
+                  label="Upload the role description"
                   file={jdFile}
                   onFileSelect={setJdFile}
                   onClear={() => setJdFile(null)}
@@ -178,11 +169,9 @@ export default function SetupPage() {
             transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
             className="space-y-4"
           >
-            <div className="flex items-center gap-2 mb-6">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-                <Gauge className="w-4 h-4 text-primary" />
-              </div>
-              <h2 className="text-xl font-semibold text-text-primary">Interview Settings</h2>
+            <div className="mb-6">
+              <p className="eyebrow text-text-muted">02 — Your session</p>
+              <h2 className="editorial mt-2 text-3xl">Choose how you want to practice.</h2>
             </div>
 
             <div className="space-y-8">
@@ -220,7 +209,7 @@ export default function SetupPage() {
                     <h3 className="text-lg font-semibold text-text-primary">Session Duration</h3>
                   </div>
                   <div className="text-right">
-                    <span className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                    <span className="mono text-3xl font-medium text-text-primary">
                       {duration}
                     </span>
                     <span className="text-sm text-text-muted ml-2">minutes</span>

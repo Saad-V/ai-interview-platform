@@ -33,6 +33,8 @@ psycopg2-binary==2.9.12
 pydantic==2.13.4
 pydantic-extra-types==2.11.1
 pydantic-settings==2.14.2
+PyJWT==2.10.1
+pwdlib[argon2]==0.2.1
 pydantic_core==2.46.4
 Pygments==2.20.0
 python-dotenv==1.2.2

@@ -42,8 +42,6 @@ export default function StepProgress({ steps, currentStep }: StepProgressProps) 
                   transition={{ duration: 0.3 }}
                   className={`
                     w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10
-                    ${isCompleted ? 'shadow-[0_0_12px_rgba(16,185,129,0.3)]' : ''}
-                    ${isActive ? 'shadow-[0_0_16px_rgba(124,58,237,0.4)]' : ''}
                   `}
                   style={{
                     border: !isCompleted && !isActive ? '1px solid var(--color-border)' : 'none',
@@ -68,7 +66,7 @@ export default function StepProgress({ steps, currentStep }: StepProgressProps) 
 
                 {/* Connector line */}
                 {index < steps.length - 1 && (
-                  <div className="w-0.5 h-12 relative overflow-hidden">
+                  <div className="w-px h-12 relative overflow-hidden">
                     <div className="absolute inset-0 bg-border-subtle" />
                     {isCompleted && (
                       <motion.div

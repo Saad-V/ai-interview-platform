@@ -1,18 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useInterview, useInterviewDispatch } from '../hooks/useInterview';
 import { interviewService } from '../services/interviewService';
-import type { QuestionResponse, InterviewReport } from '../types/interview';
+import type { QuestionResponse, InterviewReport, InterviewPhase } from '../types/interview';
 import { useSpeechSynthesis } from '../hooks/useSpeechSynthesis';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import InterviewProgress from '../components/interview/InterviewProgress';
-import AIAvatar from '../components/interview/AIAvatar';
 import StatusIndicator from '../components/interview/StatusIndicator';
 import ReplayButton from '../components/interview/ReplayButton';
 import SubmitButton from '../components/interview/SubmitButton';
-import type { InterviewPhase } from '../components/interview/AIAvatar';
 
 export default function InterviewPage() {
   const navigate = useNavigate();
@@ -29,13 +27,11 @@ export default function InterviewPage() {
 
   // ── Phase state machine ──
   const [phase, setPhase] = useState<InterviewPhase>('idle');
-  const [showQuestion, setShowQuestion] = useState(false);
 
   // ── Hooks ──
   const { speak, stop, isSpeaking } = useSpeechSynthesis();
   const {
     transcript,
-    audioLevel,
     startListening,
     stopListening,
     resetTranscript,
@@ -52,11 +48,8 @@ export default function InterviewPage() {
   const speakQuestion = useCallback(
     (text: string) => {
       setPhase('speaking');
-      setShowQuestion(true);
       speak(text, {
         onEnd: () => {
-          // Question fades out, auto-start listening
-          setShowQuestion(false);
           setPhase('listening');
           startListening();
         },
@@ -204,96 +197,46 @@ export default function InterviewPage() {
     );
   }
 
-  // ── Main interview UI ──
   return (
-    <div
-      className="min-h-screen flex flex-col items-center"
-      style={{ paddingTop: '80px' }}
-    >
-      {/* Progress */}
+    <main className="mx-auto min-h-screen max-w-3xl px-5 pb-16 pt-28 sm:px-8">
       <InterviewProgress turnCount={turnCount} />
-
-      {/* AI Avatar — visual centerpiece */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-6 py-8">
-        <AIAvatar phase={phase} audioLevel={audioLevel} />
-
-        {/* Status */}
-        <StatusIndicator phase={phase} />
-
-        {/* Temporary question text — visible only during speaking */}
-        <div className="max-w-xl w-full px-6 min-h-[80px] flex items-center justify-center">
-          <AnimatePresence mode="wait">
-            {showQuestion && question && (
-              <motion.p
-                key={question.turn_number}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.4 }}
-                className="text-center text-lg text-text-secondary leading-relaxed"
-              >
-                {question.question}
-              </motion.p>
-            )}
-          </AnimatePresence>
+      <section className="mt-12">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-5">
+          <p className="eyebrow text-text-muted">{question?.section_title || 'Interview'}</p>
+          <div className="flex items-center gap-4">
+            <p className="mono text-text-muted">QUESTION {String(turnCount).padStart(2, '0')} / 10</p>
+            <StatusIndicator phase={phase} />
+          </div>
         </div>
 
-        {/* Temporary transcript text — visible only during listening */}
-        <div className="max-w-xl w-full px-6 min-h-[120px] flex items-center justify-center">
-          <AnimatePresence mode="wait">
-            {phase === 'listening' && (
-              <motion.div
-                key="transcript"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.4 }}
-                className="w-full text-center p-4 bg-surface-elevated border border-border-subtle rounded-xl"
-              >
-                <p className="text-sm text-text-muted mb-2 font-medium">Your answer:</p>
-                <p className="text-lg text-text-primary leading-relaxed min-h-[1.5rem]">
-                  {answer || <span className="text-text-muted italic">Speak your answer...</span>}
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-
-      {/* Non-fatal error toast */}
-      <AnimatePresence>
-        {error && question && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            className="rounded-xl border border-danger/30 bg-danger/10 px-5 py-3 mb-4 flex items-center gap-3"
-          >
-            <AlertCircle className="w-4 h-4 text-danger shrink-0" />
-            <p className="text-sm text-danger">{error}</p>
-          </motion.div>
+        <h1 className="editorial mt-10 text-4xl leading-tight sm:text-5xl">
+          {question?.question}
+        </h1>
+        <label className="form-label mt-10" htmlFor="candidate-answer">Your answer</label>
+        <textarea
+          id="candidate-answer"
+          className="form-control min-h-56 resize-y leading-7"
+          placeholder="Take a moment to gather your thoughts, then write or speak your answer."
+          value={answer}
+          onChange={(event) => setAnswer(event.target.value)}
+          disabled={phase === 'thinking'}
+        />
+        {error && (
+          <div role="alert" className="mt-4 rounded-lg border border-border bg-surface px-4 py-3 text-sm text-text-secondary">
+            <AlertCircle className="mr-2 inline h-4 w-4" />
+            {error}
+          </div>
         )}
-      </AnimatePresence>
 
-      {/* Controls bar */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="flex items-center gap-4 pb-10"
-      >
-        <ReplayButton
-          onReplay={handleReplay}
-          disabled={isSpeaking || phase === 'thinking'}
-        />
-
-        <SubmitButton
-          disabled={phase !== 'listening' || !answer.trim()}
-          isSubmitting={phase === 'thinking'}
-          onSubmit={handleSubmit}
-        />
-
-      </motion.div>
-    </div>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+          <ReplayButton onReplay={handleReplay} disabled={isSpeaking || phase === 'thinking'} />
+          <SubmitButton
+            disabled={phase !== 'listening' || !answer.trim()}
+            isSubmitting={phase === 'thinking'}
+            onSubmit={handleSubmit}
+          />
+        </div>
+      </section>
+    </main>
   );
 }

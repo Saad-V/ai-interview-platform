@@ -48,18 +48,27 @@ def _validate_resume_file_size(file: UploadFile, max_bytes: int = MAX_RESUME_FIL
     return size
 
 
-def create_resume(db: Session, interview_session_id: uuid.UUID, file: UploadFile) -> Resume:
+def create_resume(
+    db: Session,
+    interview_session_id: uuid.UUID,
+    file: UploadFile,
+    owner_id: uuid.UUID,
+) -> Resume:
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is missing.")
     _validate_resume_extension(file.filename)
     file_size = _validate_resume_file_size(file)
 
-    session_exists = db.query(InterviewSession).get(interview_session_id)
+    session_exists = (
+        db.query(InterviewSession)
+        .filter_by(id=interview_session_id, user_id=owner_id)
+        .first()
+    )
     if session_exists is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Interview session '{interview_session_id}' not found.",
+            detail="Interview session not found.",
         )
 
     storage_path = save_resume_file(interview_session_id, file)

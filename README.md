@@ -123,7 +123,23 @@ graph TB
 
 ## API Overview
 
-All endpoints are under `/api/v1/interview-sessions`.
+Authentication endpoints are under `/api/v1/auth`. Interview operations require
+an `Authorization: Bearer <access_token>` header. Create an account or log in to
+receive a short-lived access token; each interview session and its uploaded
+documents are then restricted to that account.
+
+Set `JWT_SECRET_KEY` to a cryptographically random secret of at least 32
+characters before starting the API. Apply the database migration with
+`alembic upgrade head`. Existing interview sessions without an owner remain
+inaccessible through the authenticated API.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/auth/register` | Create an account and receive an access token |
+| `POST` | `/api/v1/auth/login` | Log in and receive an access token |
+| `GET` | `/api/v1/auth/me` | Return the current account |
+
+Interview endpoints are under `/api/v1/interview-sessions`.
 
 | Method | Endpoint | Purpose |
 |---|---|---|

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Brain, AlertCircle, ArrowRight } from 'lucide-react';
+import { AlertCircle, ArrowRight } from 'lucide-react';
 import StepProgress from '../components/StepProgress';
 import { useInterview } from '../hooks/useInterview';
 import { interviewService } from '../services/interviewService';
@@ -102,29 +102,22 @@ export default function PreparingPage() {
   }
 
   return (
-    <div className="min-h-screen pb-12 px-8 flex items-center justify-center section-glow" style={{ paddingTop: '140px' }}>
-      {/* Subtle background glow */}
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/4 rounded-full blur-[150px] pointer-events-none" />
-
-      <div className="max-w-lg w-full relative z-10">
+    <div className="min-h-screen px-5 pb-12 pt-28 flex items-center justify-center">
+      <div className="max-w-lg w-full">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-12"
         >
-          <motion.div
-            animate={hasStarted ? { rotate: 360 } : {}}
-            transition={hasStarted ? { duration: 8, repeat: Infinity, ease: 'linear' } : {}}
-            className="w-14 h-14 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-6"
-          >
-            <Brain className="w-7 h-7 text-primary" />
-          </motion.div>
-          <h1 className="text-2xl md:text-3xl font-bold mb-3">
+          <div className="mono mx-auto mb-6 flex h-12 w-12 items-center justify-center rounded-full border border-border">
+            AiiN
+          </div>
+          <h1 className="editorial mb-3 text-4xl md:text-5xl">
             {hasStarted ? (
-              <>Preparing Your <span className="gradient-text">Interview</span></>
+              <>Preparing your interview</>
             ) : (
-              <>Ready to <span className="gradient-text">Begin?</span></>
+              <>Ready to begin?</>
             )}
           </h1>
           <p className="text-text-secondary text-sm max-w-sm mx-auto">
@@ -143,7 +136,7 @@ export default function PreparingPage() {
           >
             <button
               onClick={handleStart}
-              className="group flex items-center gap-3 px-8 py-4 btn-gradient rounded-xl text-lg transition-transform active:scale-95"
+              className="primary-action"
             >
               Start Interview
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />

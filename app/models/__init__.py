@@ -6,3 +6,4 @@ from app.models.job_profile import JobProfile
 from app.models.interview_blueprint import InterviewBlueprint
 from app.models.conversation_turn import ConversationTurn
 from app.models.report import Report
+from app.models.user import User
