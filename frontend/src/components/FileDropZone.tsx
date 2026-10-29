@@ -1,5 +1,4 @@
 import { useCallback, useState, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { Upload, FileText, X, CheckCircle2 } from 'lucide-react';
 
 interface FileDropZoneProps {
@@ -60,30 +59,22 @@ export default function FileDropZone({
 
   return (
     <div className="w-full">
-      {label && (
-        <label className="block text-sm font-medium text-text-secondary mb-3">
-          {label}
-        </label>
-      )}
+      {label && <p className="form-label">{label}</p>}
 
-      <motion.div
+      <div
         onClick={handleClick}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        whileHover={!file && !disabled ? { scale: 1.01, borderColor: 'rgba(124, 58, 237, 0.3)' } : undefined}
-        whileTap={!file && !disabled ? { scale: 0.99 } : undefined}
-        className={`
-          relative rounded-lg border-2 border-dashed transition-all duration-300
-          ${isDragging
-            ? 'border-primary bg-primary/10 scale-[1.02] shadow-lg shadow-primary/20'
-            : file
-              ? 'border-success/40 bg-success/8 shadow-sm shadow-success/10'
-              : disabled
-                ? 'border-border-subtle/50 bg-surface/30 cursor-not-allowed opacity-40'
-                : 'border-border/60 bg-surface/30 hover:bg-surface/50 cursor-pointer hover:shadow-sm hover:shadow-primary/10'
+        className={`drop-zone ${isDragging ? 'is-dragging' : ''} ${file ? 'has-file' : ''} ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        onKeyDown={(event) => {
+          if (!disabled && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            handleClick();
           }
-        `}
+        }}
       >
         <input
           ref={inputRef}
@@ -95,18 +86,8 @@ export default function FileDropZone({
         />
 
         {file ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-4 p-6"
-          >
-            <motion.div
-              animate={{ scale: [1, 1.05, 1] }}
-              transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
-              className="w-12 h-12 rounded-lg bg-success/15 border border-success/30 flex items-center justify-center shrink-0"
-            >
-              <CheckCircle2 className="w-5 h-5 text-success" />
-            </motion.div>
+          <div className="flex items-center gap-4">
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-text-primary" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-text-primary truncate">
                 {file.name}
@@ -116,53 +97,33 @@ export default function FileDropZone({
               </p>
             </div>
             {!disabled && (
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
+              <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   onClear();
                 }}
-                className="p-2 rounded-lg hover:bg-danger/15 text-text-muted hover:text-danger transition-all"
+                className="rounded-lg p-2 text-text-muted hover:text-text-primary"
+                aria-label="Remove selected file"
               >
                 <X className="w-4 h-4" />
-              </motion.button>
+              </button>
             )}
-          </motion.div>
+          </div>
         ) : (
-          <div className="flex flex-col items-center gap-4 py-12 px-4">
-            <motion.div
-              animate={isDragging ? { y: -5, scale: 1.15 } : { y: 0, scale: 1 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-              className="relative"
-            >
-              <motion.div
-                animate={isDragging ? { opacity: 1, scale: 1.2 } : { opacity: 0, scale: 1 }}
-                className="absolute inset-0 w-14 h-14 rounded-lg bg-primary/20 blur-lg"
-              />
-              <div className="w-14 h-14 rounded-lg bg-primary/12 border border-primary/25 flex items-center justify-center relative">
-                {isDragging ? (
-                  <FileText className="w-7 h-7 text-primary" />
-                ) : (
-                  <Upload className="w-7 h-7 text-primary/70" />
-                )}
-              </div>
-            </motion.div>
-            <motion.div
-              animate={isDragging ? { scale: 1.05 } : { scale: 1 }}
-              className="text-center"
-            >
-              <p className="text-sm font-semibold text-text-primary">
-                {isDragging ? 'Drop here to upload' : 'Drag and drop your file'}
+          <div className="flex min-h-[126px] flex-col items-center justify-center gap-3 text-center">
+            {isDragging ? <FileText className="h-6 w-6" /> : <Upload className="h-6 w-6 text-text-secondary" />}
+            <div>
+              <p className="text-sm font-medium text-text-primary">
+                {isDragging ? 'Drop to add your file' : 'Drop a file here or browse'}
               </p>
-              <p className="text-xs text-text-muted mt-2">
-                or click to browse • PDF, DOC, DOCX, or TXT
+              <p className="mt-1 text-xs text-text-muted">
+                PDF, DOC, DOCX or TXT
               </p>
-            </motion.div>
+            </div>
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

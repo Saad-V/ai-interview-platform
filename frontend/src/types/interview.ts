@@ -17,6 +17,8 @@ export const InterviewStatus = {
 
 export type InterviewStatus = (typeof InterviewStatus)[keyof typeof InterviewStatus];
 
+export type InterviewPhase = 'idle' | 'speaking' | 'listening' | 'thinking';
+
 // ── Request Types ──
 
 export interface InterviewSessionCreate {

@@ -1,3 +1,5 @@
+import uuid
+
 from app.models.interview_session import InterviewSession
 from app.core.enums import InterviewStatus
 from app.schemas.interview_session import InterviewSessionCreate
@@ -9,10 +11,12 @@ class InterviewRepository:
         self,
         db: Session,
         interview: InterviewSessionCreate,
+        user_id: uuid.UUID,
     ) -> InterviewSession:
         interview_session = InterviewSession(
             difficulty=interview.difficulty,
             planned_duration_minutes=interview.planned_duration_minutes,
+            user_id=user_id,
         )
         db.add(interview_session)
         try:

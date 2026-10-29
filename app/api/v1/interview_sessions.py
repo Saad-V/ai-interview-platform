@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.db.dependencies import get_db
+from app.api.dependencies import get_current_user, require_owned_interview_session
+from app.models.user import User
 from app.schemas.interview_runtime_schema import SubmitAnswerRequest
 from app.schemas.interview_session import (
     InterviewSessionCreate,
@@ -28,20 +30,28 @@ router = APIRouter(
 def create_interview_endpoint(
     interview: InterviewSessionCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     return create_interview(
         db=db,
         interview=interview,
+        user_id=current_user.id,
     )
 
-@router.post("/{session_id}/start")
+@router.post(
+    "/{session_id}/start",
+    dependencies=[Depends(require_owned_interview_session)],
+)
 def start_interview_session(
     session_id: uuid.UUID,
     db: Session = Depends(get_db),
 ):
     return start_interview(db = db, interview_session_id=session_id)
 
-@router.post("/{session_id}/begin")
+@router.post(
+    "/{session_id}/begin",
+    dependencies=[Depends(require_owned_interview_session)],
+)
 def begin_interview(
     session_id: uuid.UUID,
     db: Session = Depends(get_db),
@@ -51,7 +61,10 @@ def begin_interview(
         interview_session_id=session_id,
     )
 
-@router.post("/{session_id}/answer")
+@router.post(
+    "/{session_id}/answer",
+    dependencies=[Depends(require_owned_interview_session)],
+)
 def submit_answer(
     session_id: uuid.UUID,
     submit_answer_request: SubmitAnswerRequest,

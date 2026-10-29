@@ -41,9 +41,10 @@ report_repository = ReportRepository()
 
 def create_interview(
         db: Session,
-        interview: InterviewSessionCreate
+        interview: InterviewSessionCreate,
+        user_id: uuid.UUID,
 ) -> InterviewSession:
-    return interview_repository.create(db, interview)
+    return interview_repository.create(db, interview, user_id)
 
 def start_interview(
     db: Session,

@@ -1,9 +1,12 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { InterviewProvider } from './contexts/InterviewContext';
+import { AuthProvider } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
 import PageTransition from './components/PageTransition';
+import RequireAuth from './components/RequireAuth';
 import LandingPage from './pages/LandingPage';
+import AuthPage from './pages/AuthPage';
 import SetupPage from './pages/SetupPage';
 import PreparingPage from './pages/PreparingPage';
 import InterviewPage from './pages/InterviewPage';
@@ -23,16 +26,22 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <InterviewProvider>
         <BrowserRouter>
-          <Navbar />
-          <PageTransition>
-            <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/setup" element={<SetupPage />} />
-              <Route path="/preparing" element={<PreparingPage />} />
-              <Route path="/interview" element={<InterviewPage />} />
-              <Route path="/report" element={<ReportPage />} />
-            </Routes>
-          </PageTransition>
+          <AuthProvider>
+            <Navbar />
+            <PageTransition>
+              <Routes>
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/login" element={<AuthPage mode="login" />} />
+                <Route path="/register" element={<AuthPage mode="register" />} />
+                <Route element={<RequireAuth />}>
+                  <Route path="/setup" element={<SetupPage />} />
+                  <Route path="/preparing" element={<PreparingPage />} />
+                  <Route path="/interview" element={<InterviewPage />} />
+                  <Route path="/report" element={<ReportPage />} />
+                </Route>
+              </Routes>
+            </PageTransition>
+          </AuthProvider>
         </BrowserRouter>
       </InterviewProvider>
     </QueryClientProvider>
