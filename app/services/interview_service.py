@@ -9,6 +9,14 @@ from app.repositories.candidate_profile_repository import CandidateProfileReposi
 from app.repositories.interview_blueprint_repository import InterviewBlueprintRepository
 from app.repositories.job_profile_repository import JobProfileRepository
 from app.schemas.interview_blueprint import InterviewBlueprintCreate
+from app.schemas.interview_history import (
+    AnswerEvaluationResponse,
+    ConversationTurnHistoryResponse,
+    InterviewSessionHistoryDetail,
+    InterviewSessionHistoryItem,
+    InterviewSessionHistoryPage,
+    InterviewReportPreview,
+)
 from app.schemas.interview_session import InterviewSessionCreate
 from app.repositories.interview_repository import InterviewRepository
 from app.repositories.resume_repository import ResumeRepository
@@ -27,7 +35,7 @@ from app.services.answer_evaluation_service import evaluate_answer
 from app.schemas.conversation_turn import ConversationTurnCreate
 from app.repositories.report_repository import ReportRepository
 from app.services.interview_report_service import generate_interview_report
-from app.schemas.report import ReportCreate
+from app.schemas.report import InterviewReportResponse, ReportCreate
 
 interview_repository = InterviewRepository()
 resume_repository = ResumeRepository()
@@ -45,6 +53,118 @@ def create_interview(
         user_id: uuid.UUID,
 ) -> InterviewSession:
     return interview_repository.create(db, interview, user_id)
+
+
+def get_interview_history_page(
+    db: Session,
+    user_id: uuid.UUID,
+    limit: int,
+    cursor: uuid.UUID | None,
+) -> InterviewSessionHistoryPage:
+    rows = interview_repository.get_history_page_for_user(
+        db=db,
+        user_id=user_id,
+        limit=limit,
+        cursor=cursor,
+    )
+    if rows is None:
+        raise HTTPException(status_code=400, detail="Invalid session cursor.")
+
+    has_more = len(rows) > limit
+    page_rows = rows[:limit]
+    items = [
+        InterviewSessionHistoryItem(
+            id=session.id,
+            status=session.status,
+            difficulty=session.difficulty,
+            planned_duration_minutes=session.planned_duration_minutes,
+            created_at=session.created_at,
+            completed_at=session.completed_at,
+            turn_count=turn_count,
+            report_preview=(
+                InterviewReportPreview(
+                    overall_score=report.overall_score,
+                    summary=report.report_json["summary"],
+                    recommendation=report.report_json["recommendation"],
+                )
+                if report is not None
+                else None
+            ),
+        )
+        for session, report, turn_count in page_rows
+    ]
+    return InterviewSessionHistoryPage(
+        items=items,
+        next_cursor=items[-1].id if has_more and items else None,
+    )
+
+
+def get_interview_history_detail(
+    db: Session,
+    interview_session_id: uuid.UUID,
+    user_id: uuid.UUID,
+) -> InterviewSessionHistoryDetail:
+    session = interview_repository.get_by_id_for_user(
+        db=db,
+        interview_session_id=interview_session_id,
+        user_id=user_id,
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="Interview session not found.")
+
+    report = report_repository.get_by_session_id(db, interview_session_id)
+    return InterviewSessionHistoryDetail(
+        id=session.id,
+        status=session.status,
+        difficulty=session.difficulty,
+        planned_duration_minutes=session.planned_duration_minutes,
+        created_at=session.created_at,
+        completed_at=session.completed_at,
+        turn_count=interview_repository.count_turns(db, interview_session_id),
+        report=(
+            InterviewReportResponse.model_validate(report.report_json)
+            if report is not None
+            else None
+        ),
+    )
+
+
+def get_interview_turn_history(
+    db: Session,
+    interview_session_id: uuid.UUID,
+    user_id: uuid.UUID,
+) -> list[ConversationTurnHistoryResponse]:
+    session = interview_repository.get_by_id_for_user(
+        db=db,
+        interview_session_id=interview_session_id,
+        user_id=user_id,
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="Interview session not found.")
+
+    turns = conversation_turn_repository.get_by_session_id(
+        db=db,
+        interview_session_id=interview_session_id,
+    )
+    return [
+        ConversationTurnHistoryResponse(
+            id=turn.id,
+            interview_session_id=turn.interview_session_id,
+            turn_number=turn.turn_number,
+            created_at=turn.created_at,
+            completed_at=turn.completed_at,
+            section_title=turn.exchange_json["section_title"],
+            question=turn.exchange_json["question"],
+            candidate_answer=turn.exchange_json["candidate_answer"],
+            evaluation=(
+                AnswerEvaluationResponse.model_validate(turn.evaluation_json)
+                if turn.evaluation_json is not None
+                else None
+            ),
+        )
+        for turn in turns
+    ]
+
 
 def start_interview(
     db: Session,

@@ -53,3 +53,5 @@ storage/
 
 # Windows
 Thumbs.db
+
+tests/

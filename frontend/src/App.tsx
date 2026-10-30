@@ -11,6 +11,8 @@ import SetupPage from './pages/SetupPage';
 import PreparingPage from './pages/PreparingPage';
 import InterviewPage from './pages/InterviewPage';
 import ReportPage from './pages/ReportPage';
+import SessionHistoryPage from './pages/SessionHistoryPage';
+import SessionDetailPage from './pages/SessionDetailPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,6 +40,8 @@ export default function App() {
                   <Route path="/preparing" element={<PreparingPage />} />
                   <Route path="/interview" element={<InterviewPage />} />
                   <Route path="/report" element={<ReportPage />} />
+                  <Route path="/sessions" element={<SessionHistoryPage />} />
+                  <Route path="/sessions/:sessionId" element={<SessionDetailPage />} />
                 </Route>
               </Routes>
             </PageTransition>

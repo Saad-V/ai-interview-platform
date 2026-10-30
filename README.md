@@ -144,11 +144,20 @@ Interview endpoints are under `/api/v1/interview-sessions`.
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `POST` | `/` | Create a new interview session (difficulty + duration) |
+| `GET` | `/` | List the signed-in user’s sessions (`limit` + `cursor` pagination) |
+| `GET` | `/{id}` | Return session metadata and the final report, if available |
+| `GET` | `/{id}/turns` | Return ordered questions, answers, and per-answer evaluations |
 | `POST` | `/{id}/resume` | Upload resume |
 | `POST` | `/{id}/job-description` | Upload job description |
 | `POST` | `/{id}/start` | Parse documents, generate profiles + blueprint |
 | `POST` | `/{id}/begin` | Begin the interview loop, get first question |
 | `POST` | `/{id}/answer` | Submit an answer, get evaluation + next question (or final report) |
+
+History endpoints only return sessions owned by the authenticated account. The
+session list defaults to 20 results and accepts `limit` values from 1 to 100;
+pass the returned `next_cursor` as `cursor` to load the next page. Session
+details include the report summary and scores when the interview is complete;
+the turns endpoint includes the saved answer-level feedback.
 
 ---
 ## Project Structure

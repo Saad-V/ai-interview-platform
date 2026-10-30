@@ -14,6 +14,7 @@ export default function Navbar() {
           <div className="flex items-center gap-5">
             {user ? (
               <>
+                <Link className="text-link text-sm" to="/sessions">History</Link>
                 <span className="hidden max-w-52 truncate text-sm text-text-secondary sm:inline">
                   {user.email}
                 </span>
