@@ -9,6 +9,7 @@ import pytest
 
 from app.api.v1 import interview_sessions
 from app.core.enums import InterviewDifficulty, InterviewStatus
+from app.core.interview_design import RUBRIC_VERSION
 from app.schemas.interview_blueprint import InterviewBlueprintCreate
 from app.schemas.interview_history import InterviewSessionHistoryPage
 from app.schemas.interview_runtime_schema import (
@@ -69,7 +70,8 @@ def test_submit_answer_returns_next_question_when_interview_is_not_complete(monk
                             {"question": "Question 2"},
                         ],
                     }
-                ]
+                ],
+                "rubric_version": RUBRIC_VERSION,
             }
         ),
     )
@@ -81,7 +83,7 @@ def test_submit_answer_returns_next_question_when_interview_is_not_complete(monk
     monkeypatch.setattr(
         interview_service,
         "evaluate_answer",
-        lambda **kwargs: SimpleNamespace(model_dump=lambda: {"score": 1}),
+        lambda **kwargs: SimpleNamespace(model_dump=lambda **_dump_kwargs: {"score": 1}),
     )
     monkeypatch.setattr(
         interview_service.conversation_turn_repository,
@@ -460,6 +462,114 @@ def test_turn_history_accepts_legacy_answer_and_evaluation_fields(monkeypatch):
     assert result[0].evaluation.awarded_score is None
 
 
+def test_final_report_uses_code_calculated_scores_not_narrative_model(monkeypatch):
+    session_id = uuid.uuid4()
+    evaluation_json = {
+        "rubric_version": RUBRIC_VERSION,
+        "awarded_score": 7,
+        "maximum_score": 10,
+        "score_percentage": 70.0,
+        "technical_score": 6,
+        "communication_score": 1,
+        "technical_percentage": 75.0,
+        "communication_percentage": 50.0,
+        "criteria": [
+            {"criterion_id": "ACCURACY", "maximum_score": 4, "awarded_score": 3},
+            {"criterion_id": "COVERAGE", "maximum_score": 2, "awarded_score": 2},
+            {"criterion_id": "REASONING", "maximum_score": 2, "awarded_score": 1},
+            {"criterion_id": "COMMUNICATION", "maximum_score": 2, "awarded_score": 1},
+        ],
+        "feedback": "A relevant example.",
+    }
+    created_reports = []
+    saved_turns = []
+    monkeypatch.setattr(
+        interview_service.interview_repository,
+        "get_by_id",
+        lambda **_kwargs: SimpleNamespace(status=InterviewStatus.IN_PROGRESS),
+    )
+    monkeypatch.setattr(
+        interview_service.interview_blueprint_repository,
+        "get_by_session_id",
+        lambda **_kwargs: SimpleNamespace(
+            blueprint_json={
+                "rubric_version": RUBRIC_VERSION,
+                "sections": [
+                    {
+                        "title": "Technical",
+                        "questions": [{"question": "Explain database integrity."}],
+                    }
+                ],
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        interview_service.conversation_turn_repository,
+        "get_last_turn",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        interview_service,
+        "evaluate_answer",
+        lambda **_kwargs: SimpleNamespace(model_dump=lambda **_dump_kwargs: evaluation_json),
+    )
+    monkeypatch.setattr(
+        interview_service.conversation_turn_repository,
+        "create",
+        lambda **kwargs: saved_turns.append(kwargs["conversation_turn"]),
+    )
+
+    monkeypatch.setattr(
+        interview_service.conversation_turn_repository,
+        "get_by_session_id",
+        lambda **_kwargs: [],
+    )
+    monkeypatch.setattr(
+        interview_service.candidate_profile_repository,
+        "get_by_session_id",
+        lambda **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        interview_service.job_profile_repository,
+        "get_by_session_id",
+        lambda **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        interview_service,
+        "generate_interview_report",
+        lambda **_kwargs: SimpleNamespace(
+            strengths=["Clear explanation"],
+            areas_for_improvement=["Add detail"],
+            summary="A capable answer.",
+        ),
+    )
+    monkeypatch.setattr(
+        interview_service.report_repository,
+        "create",
+        lambda **kwargs: created_reports.append(kwargs["report"]),
+    )
+    monkeypatch.setattr(
+        interview_service.interview_repository,
+        "update_status",
+        lambda **_kwargs: None,
+    )
+
+    result = interview_service.submit_answer(
+        db=object(),
+        interview_session_id=session_id,
+        answer="I used foreign keys.",
+    )
+
+    assert result["interview_completed"] is True
+    assert result["report"]["overall_score"] == 70
+    assert result["report"]["technical_score"] == 75
+    assert result["report"]["communication_score"] == 50
+    assert result["report"]["recommendation"] == "Hire"
+    assert created_reports[0].overall_score == 70
+    assert created_reports[0].report_json["total_awarded_score"] == 7
+    assert created_reports[0].report_json["total_maximum_score"] == 10
+
+
 def test_submit_answer_response_normalizes_final_report_scores():
     response = SubmitAnswerResponse.model_validate(
         {
@@ -485,4 +595,8 @@ def test_submit_answer_response_normalizes_final_report_scores():
         "areas_for_improvement": ["Add more detail"],
         "summary": "A strong interview.",
         "recommendation": "Hire",
+        "rubric_version": None,
+        "total_awarded_score": None,
+        "total_maximum_score": None,
+        "question_count": None,
     }

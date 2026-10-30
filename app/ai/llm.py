@@ -48,6 +48,7 @@ def _try_generate(
     system_prompt: str,
     user_prompt: str,
     response_schema: Type[T],
+    temperature: float,
 ) -> T:
     response = client.models.generate_content(
         model=model,
@@ -56,7 +57,7 @@ def _try_generate(
             system_instruction=system_prompt,
             response_mime_type="application/json",
             response_schema=response_schema,
-            temperature=0.2,
+            temperature=temperature,
         ),
     )
 
@@ -81,6 +82,7 @@ def generate_structured_output(
     system_prompt: str,
     user_prompt: str,
     response_schema: Type[T],
+    temperature: float = 0.2,
 ) -> T:
     model_sequence = _build_model_sequence()
     last_exception: Exception | None = None
@@ -95,6 +97,7 @@ def generate_structured_output(
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
                     response_schema=response_schema,
+                    temperature=temperature,
                 )
             except errors.ServerError as e:
                 last_exception = e

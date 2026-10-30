@@ -47,6 +47,14 @@ export default function ReportPage() {
             {Math.round(report.overall_score)}
             <span className="ml-2 text-3xl text-text-muted">/100</span>
           </p>
+          <p className="mt-3 text-xs text-text-muted">
+            {report.rubric_version && report.total_awarded_score !== null
+              && report.total_awarded_score !== undefined
+              && report.total_maximum_score !== null
+              && report.total_maximum_score !== undefined
+              ? `Calculated from ${report.total_awarded_score} / ${report.total_maximum_score} rubric points across ${report.question_count} answers.`
+              : 'Legacy AI-generated score; not calculated from the current rubric.'}
+          </p>
         </div>
         <div className="space-y-6">
           {scores.map(([label, score]) => (

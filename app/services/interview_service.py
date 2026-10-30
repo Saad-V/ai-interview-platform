@@ -22,6 +22,11 @@ from app.repositories.interview_repository import InterviewRepository
 from app.repositories.resume_repository import ResumeRepository
 from app.repositories.job_description_repository import JobDescriptionRepository
 from app.core.config import settings
+from app.core.interview_design import (
+    RUBRIC_VERSION,
+    calculate_report_scores,
+    recommendation_for_score,
+)
 from app.schemas.candidate_profile import CandidateProfileCreate
 from app.schemas.job_profile import JobProfileCreate
 from app.services.candidate_profile_service import generate_candidate_profile
@@ -86,6 +91,7 @@ def get_interview_history_page(
                     overall_score=report.overall_score,
                     summary=report.report_json.get("summary", ""),
                     recommendation=report.report_json.get("recommendation", ""),
+                    rubric_version=report.report_json.get("rubric_version"),
                 )
                 if report is not None
                 else None
@@ -329,6 +335,14 @@ def begin_interview(
             status_code=404,
             detail="Interview blueprint not found.",
         )
+    if blueprint.blueprint_json.get("rubric_version") != RUBRIC_VERSION:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This interview uses an older scoring rubric and cannot be "
+                "scored consistently. Please start a new interview."
+            ),
+        )
 
     last_turn = conversation_turn_repository.get_last_turn(
         db=db,
@@ -388,6 +402,14 @@ def submit_answer(
             status_code = 404,
             detail = 'Interview Blueprint details not found'
         )
+    if blueprint.blueprint_json.get("rubric_version") != RUBRIC_VERSION:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This interview uses an older scoring rubric and cannot be "
+                "scored consistently. Please start a new interview."
+            ),
+        )
     
     sections = blueprint.blueprint_json["sections"]
 
@@ -420,22 +442,28 @@ def submit_answer(
         candidate_answer=answer,
     )
 
-    conversation_turn_repository.create(
-    db=db,
-    conversation_turn=ConversationTurnCreate(
-        interview_session_id=interview_session_id,
-        turn_number=turn_number,
-        exchange_json={
-            "section_title": section_title,
-            "question": current_question["question"],
-            "candidate_answer": answer,
-        },
-        evaluation_json=evaluation.model_dump(),
-    ),
-)
     next_question_index = question_index + 1
-    if next_question_index >= len(questions):
+    is_final_answer = next_question_index >= len(questions)
+    evaluation_json = evaluation.model_dump(mode="json")
+    answer_exchange = {
+        "section_title": section_title,
+        "question": current_question["question"],
+        "candidate_answer": answer,
+    }
+    report_data = None
+    report = None
+    overall_score = None
 
+    if is_final_answer:
+        previous_turns = conversation_turn_repository.get_by_session_id(
+            db=db,
+            interview_session_id=interview_session_id,
+        )
+        if len(previous_turns) + 1 != len(questions):
+            raise HTTPException(
+                status_code=500,
+                detail="Saved answers do not match the generated interview question count.",
+            )
         candidate_profile_entry = candidate_profile_repository.get_by_session_id(
             db=db,
             interview_session_id=interview_session_id,
@@ -446,39 +474,65 @@ def submit_answer(
             interview_session_id=interview_session_id,
         )
 
-        conversation_turns = conversation_turn_repository.get_by_session_id(
-            db=db,
-            interview_session_id=interview_session_id,
-        )
-
         if candidate_profile_entry is None or job_profile_entry is None:
             raise HTTPException(
                 status_code=500,
                 detail="Interview preparation data is missing for report generation.",
             )
 
-        total_awarded = sum(turn.evaluation_json.get("awarded_score", 0) for turn in conversation_turns)
-        total_max = sum(turn.evaluation_json.get("maximum_score", 0) for turn in conversation_turns)
+        try:
+            calculated_scores = calculate_report_scores(
+                [
+                    *(turn.evaluation_json or {} for turn in previous_turns),
+                    evaluation_json,
+                ]
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Could not calculate a valid interview score: {exc}",
+            ) from exc
 
-        report = generate_interview_report(
+        narrative = generate_interview_report(
             blueprint=blueprint.blueprint_json,
             conversation_turns=[
                 {
                     "exchange": turn.exchange_json,
                     "evaluation": turn.evaluation_json,
                 }
-                for turn in conversation_turns
-            ],
-            total_awarded_score=total_awarded,
-            total_maximum_score=total_max,
+                for turn in previous_turns
+            ] + [{"exchange": answer_exchange, "evaluation": evaluation_json}],
         )
+        overall_score = float(calculated_scores["overall_score"])
+        report_data = {
+            "rubric_version": RUBRIC_VERSION,
+            **calculated_scores,
+            "strengths": narrative.strengths,
+            "areas_for_improvement": narrative.areas_for_improvement,
+            "summary": narrative.summary,
+            "recommendation": recommendation_for_score(overall_score),
+        }
+        report = InterviewReportResponse.model_validate(report_data)
 
+    conversation_turn_repository.create(
+        db=db,
+        conversation_turn=ConversationTurnCreate(
+            interview_session_id=interview_session_id,
+            turn_number=turn_number,
+            exchange_json=answer_exchange,
+            evaluation_json=evaluation_json,
+        ),
+    )
+
+    if is_final_answer:
+        if report_data is None or report is None or overall_score is None:
+            raise RuntimeError("Final interview report was not prepared.")
         report_repository.create(
             db=db,
             report=ReportCreate(
                 interview_session_id=interview_session_id,
-                overall_score=report.overall_percentage,
-                report_json=report.model_dump(),
+                overall_score=overall_score,
+                report_json=report_data,
                 pdf_storage_path=None,
             ),
         )

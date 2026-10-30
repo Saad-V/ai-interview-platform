@@ -10,14 +10,6 @@ class QuestionResponse(BaseModel):
 class SubmitAnswerRequest(BaseModel):
     answer: str
 
-class AnswerEvaluationSchema(BaseModel):
-    score: int
-    strengths: list[str]
-    weaknesses: list[str]
-    missing_topics: list[str]
-    suggested_improvement: str
-    feedback: str
-
 class SubmitAnswerResponse(BaseModel):
     interview_completed: bool
 

@@ -13,6 +13,7 @@ class ReportCreate(BaseModel):
 
 
 class InterviewReportResponse(BaseModel):
+    rubric_version: str | None = None
     overall_score: float | None = Field(
         default=None,
         validation_alias=AliasChoices("overall_score", "overall_percentage")
@@ -45,3 +46,6 @@ class InterviewReportResponse(BaseModel):
         default="",
         validation_alias=AliasChoices("recommendation", "hiring_recommendation"),
     )
+    total_awarded_score: int | None = None
+    total_maximum_score: int | None = None
+    question_count: int | None = None

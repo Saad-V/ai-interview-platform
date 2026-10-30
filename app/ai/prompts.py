@@ -1,6 +1,14 @@
-from app.core.enums import InterviewDifficulty
-from app.ai.schemas import CandidateProfileSchema, JobProfileSchema
 import json
+
+from app.ai.schemas import CandidateProfileSchema, JobProfileSchema
+from app.core.enums import InterviewDifficulty
+from app.core.interview_design import (
+    DIFFICULTY_DEFINITIONS,
+    INTERVIEW_DESIGN_VERSION,
+    RUBRIC_VERSION,
+    question_count_for_duration,
+    section_question_counts,
+)
 
 
 CANDIDATE_PROFILE_SYSTEM_PROMPT = """
@@ -72,22 +80,42 @@ Job Description:
 
 
 INTERVIEW_BLUEPRINT_SYSTEM_PROMPT = """
-You are an experienced technical interviewer and hiring manager.
+You design interview questions for a structured practice interview.
 
-Your task is to design a complete mock interview plan.
+Follow the supplied interview design version, duration, question quotas, and
+difficulty definition exactly. The backend validates these requirements and
+rejects a blueprint that does not match them.
 
-The generated blueprint must:
+Difficulty definitions:
+- EASY: Fresher / entry-level, typically 0-1 years. Test fundamentals, clear
+  definitions, guided application, and basic reasoning. Do not expect
+  production ownership or specialist depth.
+- MEDIUM: Independent early-to-mid-level practitioner, typically 2-5 years.
+  Test practical application, trade-offs, debugging, and decisions explained
+  with concrete examples.
+- HARD: Experienced senior practitioner, typically 5+ years or equivalent
+  depth. Test system-level judgment, complex trade-offs, failure modes,
+  security, scale, and defended decisions. Do not use obscure trivia.
 
-- Cover the most important topics from the candidate profile and job profile.
-- Prioritize required job skills.
-- Ask questions that fairly evaluate the candidate.
-- Progress from easier questions to more challenging ones.
-- Generate realistic follow-up questions.
-- Generate evaluation criteria for every question.
-- Return ONLY valid JSON.
-- Do not return markdown.
-- Do not explain your reasoning.
-- Never hallucinate candidate information.
+Rules:
+- All generated questions use the selected difficulty. Do not mix levels.
+- Tailor question content to the candidate profile and job description, but do
+  not assume experience or accomplishments absent from the source material.
+- Create exactly the specified number of questions in each specified category.
+- Use the exact category identifiers INTRODUCTION, PROJECTS, TECHNICAL, and
+  BEHAVIORAL. Return each category exactly once.
+- Return sections in this exact order: INTRODUCTION, PROJECTS, TECHNICAL,
+  BEHAVIORAL.
+- Each question is worth exactly 10 points and has exactly these four rubric
+  criteria, each once: ACCURACY (4), COVERAGE (2), REASONING (2), and
+  COMMUNICATION (2). The max_score values are fixed; do not change them.
+- Write the first three criterion descriptions to identify question-specific
+  observable evidence. COMMUNICATION uses clarity, structure, and directness;
+  ignore grammar, accent, and speech-transcription artifacts.
+- Expected topics and rubric descriptions must be specific and assessable.
+- Avoid duplicate questions. Follow-up questions may be included as optional
+  coaching prompts and are not separate scored questions.
+- Return only JSON matching the response schema. Do not include commentary.
 """
 
 def build_interview_blueprint_prompt(
@@ -98,37 +126,32 @@ def build_interview_blueprint_prompt(
 ) -> str:
     candidate_json = candidate_profile.model_dump_json(indent=2)
     job_json = job_profile.model_dump_json(indent=2)
+    counts = section_question_counts(question_count_for_duration(duration_minutes))
+    section_counts = "\n".join(
+        f"- {category}: exactly {count} questions"
+        for category, count in counts.items()
+    )
 
     return f"""
-Generate a complete interview blueprint.
+Generate one complete, fixed-size interview blueprint.
 
-Interview Duration:
-{duration_minutes} minutes
+Design version: {INTERVIEW_DESIGN_VERSION}
+Scoring rubric version: {RUBRIC_VERSION}
+Interview duration: {duration_minutes} minutes
+Total question count: {sum(counts.values())}
 
-Difficulty:
-{difficulty.value}
+Selected difficulty: {difficulty.value}
+Difficulty definition: {DIFFICULTY_DEFINITIONS[difficulty]}
 
-The interview should approximately follow this structure:
+Exact section quotas and weights:
 
-- Introduction and resume overview: 10%
-- Projects and practical experience: 35-40%
-- Technical concepts and required job skills: 35-40%
-- Behavioural and problem-solving questions: 15-20%
+- INTRODUCTION: 10% weight
+- PROJECTS: 35% weight
+- TECHNICAL: 35% weight
+- BEHAVIORAL: 20% weight
 
-Guidelines:
-
-- Prioritize skills that appear in both the candidate profile and the job profile.
-- Generate realistic interview questions.
-- Start with easier questions and gradually increase the difficulty.
-- Every question must include:
-  - Expected topics
-  - Follow-up questions
-  - Evaluation criteria
-  - Maximum score
-- Include enough questions to comfortably fill the interview duration.
-- Focus more on projects if the candidate is a fresher with little or no work experience.
-- Do not generate duplicate questions.
-- The sum of all section weights must equal 100.
+Exact question count per section:
+{section_counts}
 
 Candidate Profile:
 {candidate_json}
@@ -139,108 +162,47 @@ Job Profile:
 
 
 INTERVIEW_EVALUATION_SYSTEM_PROMPT = """
-You are a senior technical interviewer conducting a campus placement interview for a final-year engineering student.
+Evaluate one answer using only the supplied question, selected difficulty,
+expected topics, and fixed rubric. The rubric is:
 
-Your responsibility is to fairly evaluate ONE answer given by the candidate.
+- ACCURACY (0-4): correctness and relevance of role-specific concepts.
+- COVERAGE (0-2): coverage of the expected topics and the question asked.
+- REASONING (0-2): logical explanation, application, or justified trade-offs.
+- COMMUNICATION (0-2): clarity, structure, and directness.
 
-The goal is NOT to reject the candidate.
+Score each criterion independently with an integer from zero through its exact
+maximum. Zero means absent, incorrect, or not demonstrated; full marks mean the
+criterion is convincingly demonstrated; intermediate marks represent partial
+evidence. Do not inflate scores to be encouraging and do not infer knowledge
+that is not shown.
 
-The goal is to estimate how well they answered this particular question compared to what is reasonably expected from an entry-level engineering graduate.
+Use these anchors:
+- ACCURACY: 0 = absent or materially incorrect; 1 = mostly incorrect; 2 =
+  partly correct with important gaps; 3 = mostly correct with minor gaps;
+  4 = accurate and relevant.
+- COVERAGE: 0 = does not address expected topics; 1 = addresses some but misses
+  important parts; 2 = covers the key expected topics.
+- REASONING: 0 = no usable reasoning; 1 = partially logical or under-explained;
+  2 = coherent reasoning or a relevant, justified application.
+- COMMUNICATION: 0 = meaning is not understandable or is off-topic; 1 = mostly
+  understandable but difficult to follow or incomplete; 2 = clear, structured,
+  and directly responsive.
 
-The candidate's response comes from Speech-to-Text transcription.
+The candidate answer may be speech-to-text. Ignore grammar, accent, filler
+words, and obvious transcription errors. Evaluate intended meaning only when it
+is reasonably supported by the transcript.
 
-Therefore:
+For each criterion, return its exact criterion_id, awarded_score, and a short
+verbatim evidence excerpt from the candidate answer. If no evidence exists,
+return exactly "Not present in the answer." Evidence must not be invented.
+Also return concise constructive feedback, strengths, weaknesses, missing
+major topics, and one specific suggested improvement. Do not return a total,
+percentage, hiring recommendation, or any other score; the backend calculates
+all numeric totals. Ensure the feedback and strengths/weaknesses agree with
+the criterion scores; do not describe an answer as exceptional when the
+criterion scores show substantial gaps.
 
-- The transcript may contain grammatical mistakes.
-- It may contain incomplete sentences.
-- It may contain filler words.
-- It may contain obvious speech-recognition mistakes.
-- Technical terms may be incorrectly transcribed.
-
-Examples include (but are not limited to):
-
-UART → "you are tea"
-I2C → "I too see"
-SPI → "spy"
-Gradient Descent → "Great Indian descent"
-FastAPI → "Fast AP I"
-
-Use the interview question, expected topics, and technical context to infer obvious transcription mistakes.
-
-Do NOT penalize the candidate for these transcription errors.
-
-Mentally normalize the transcript before evaluating it.
-
-Do NOT rewrite the answer.
-
-Simply evaluate the intended meaning.
-
-----------------------------------------------------
-
-Evaluation Philosophy
-
-Evaluate like a real campus interviewer.
-
-A good candidate is NOT expected to answer perfectly.
-
-Reward:
-
-- Correct concepts
-- Partial understanding
-- Logical reasoning
-- Practical experience
-- Clear explanations
-- Honest acknowledgement of knowledge gaps
-
-Do NOT deduct marks simply because:
-
-- Grammar is imperfect.
-- Terminology is slightly inaccurate.
-- The explanation is brief but conceptually correct.
-- Speech recognition made obvious mistakes.
-
-Only deduct marks when conceptual understanding is genuinely missing or incorrect.
-
-----------------------------------------------------
-
-Scoring Guidelines
-
-Use the entire score range.
-
-Excellent answer:
-90-100%
-
-Strong answer:
-75-89%
-
-Good / Average answer:
-60-74%
-
-Weak answer:
-40-59%
-
-Poor answer:
-0-39%
-
-For most reasonably prepared engineering students, scores should naturally fall between 60 and 80.
-
-Reserve scores below 40 only for answers showing little or no understanding.
-
-Reserve scores above 90 for exceptional answers.
-
-----------------------------------------------------
-
-Rules
-
-1. Evaluate only this answer.
-2. Do not invent knowledge that was not demonstrated.
-3. Reward partial understanding where appropriate.
-4. Keep feedback constructive.
-5. Focus on concepts rather than wording.
-6. Missing topics should include only major concepts.
-7. Strengths and weaknesses should be concise bullet points.
-8. Never exceed the provided maximum score.
-9. Return ONLY valid JSON matching the response schema.
+Return only JSON matching the response schema.
 """
 
 def build_answer_evaluation_prompt(
@@ -249,16 +211,19 @@ def build_answer_evaluation_prompt(
     candidate_answer: str,
 ) -> str:
     return f"""
+Scoring rubric version: {RUBRIC_VERSION}
+
 Question:
 {question["question"]}
 
-Maximum Score:
-{question["max_score"]}
+Selected Difficulty:
+{question["difficulty"]}
+{DIFFICULTY_DEFINITIONS[InterviewDifficulty(question["difficulty"])]}
 
 Expected Topics:
 {question["expected_topics"]}
 
-Evaluation Criteria:
+Question-specific rubric criteria and maximum points:
 {question["evaluation_points"]}
 
 Candidate Answer:
@@ -267,66 +232,14 @@ Candidate Answer:
 
 
 INTERVIEW_REPORT_SYSTEM_PROMPT = """
-You are a senior technical interviewer preparing the final interview report.
+Write only the narrative portions of a mock-interview report. The answer
+evaluations and numeric scores have already been calculated. Do not rescore,
+infer scores, or make a hiring recommendation.
 
-IMPORTANT:
-
-The candidate has already been evaluated on every interview question.
-
-Each per-question evaluation has already considered:
-
-- technical correctness
-- communication
-- expected topics
-- strengths
-- weaknesses
-- missing concepts
-- improvement suggestions
-
-Your responsibility is NOT to re-evaluate the candidate.
-
-Your responsibility is to combine all individual evaluations into one professional interview report.
-
---------------------------------------------------
-
-Guidelines
-
-1. Trust the provided per-question evaluations.
-
-2. Identify recurring strengths demonstrated across multiple questions.
-
-3. Identify recurring weaknesses demonstrated across multiple questions.
-
-4. Summarize the candidate's overall interview performance.
-
-5. Determine realistic overall, technical and communication scores by considering ALL question evaluations together.
-
-6. The total awarded score and total maximum score across all turns will be provided to you. Use them to strictly determine the candidate's overall_percentage.
-
-7. Communication score should reflect:
-- clarity
-- completeness
-- confidence
-- ability to explain concepts
-
-Do NOT reduce communication score because of obvious speech-recognition mistakes.
-
-8. Technical score should reflect demonstrated conceptual understanding.
-
-Reward partial understanding where appropriate.
-
-9. Recommendation must be exactly one of:
-
-- Strong Hire
-- Hire
-- Borderline
-- No Hire
-
-10. Do not invent strengths or weaknesses that were not observed.
-
-11. Do not contradict the individual evaluations.
-
-12. Return ONLY valid JSON matching the response schema.
+Use only patterns supported by the per-answer feedback and evidence. Do not
+invent or overstate claims. Distinguish repeated patterns from a single
+observation. Keep strengths and improvement areas concise and actionable.
+Return only JSON matching the response schema.
 """
 
 
@@ -335,16 +248,16 @@ def build_interview_report_prompt(
     *,
     blueprint: dict,
     conversation_turns: list[dict],
-    total_awarded_score: int,
-    total_maximum_score: int,
 ) -> str:
 
     return f"""
+Scoring rubric version: {RUBRIC_VERSION}
+
 Interview Blueprint:
 {json.dumps(blueprint, indent=2)}
 
-Total Score Achieved: {total_awarded_score} out of {total_maximum_score}
-
-Conversation History:
+Question evaluations and answer evidence:
 {json.dumps(conversation_turns, indent=2)}
+
+Return a concise narrative summary, strengths, and areas for improvement only.
 """

@@ -100,6 +100,12 @@ export default function SessionDetailPage() {
                 {session.report.overall_score === null ? '—' : Math.round(session.report.overall_score)}
                 <span className="ml-2 text-2xl text-text-muted">/100</span>
               </p>
+              <p className="mt-2 text-xs text-text-muted">
+                {session.report.rubric_version && session.report.total_awarded_score !== null
+                  && session.report.total_maximum_score !== null
+                  ? `Calculated: ${session.report.total_awarded_score} / ${session.report.total_maximum_score} rubric points`
+                  : 'Legacy AI-generated score; not calculated from the current rubric.'}
+              </p>
             </div>
             <div>
               <p className="eyebrow text-text-muted">Summary</p>
@@ -181,6 +187,29 @@ export default function SessionDetailPage() {
                           : ''}
                     </summary>
                     <div className="mt-4 space-y-5">
+                      {turn.evaluation.criteria.length > 0 && (
+                        <div>
+                          <p className="eyebrow text-text-muted">Scored rubric evidence</p>
+                          <ul className="mt-3 divide-y divide-border border-y border-border">
+                            {turn.evaluation.criteria.map((criterion) => (
+                              <li className="py-3" key={criterion.criterion_id}>
+                                <div className="flex items-start justify-between gap-4 text-sm">
+                                  <span className="font-medium">{criterion.criterion}</span>
+                                  <span className="mono text-text-secondary">
+                                    {criterion.awarded_score} / {criterion.maximum_score}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-sm leading-6 text-text-secondary">
+                                  {criterion.description}
+                                </p>
+                                <p className="mt-2 text-xs leading-5 text-text-muted">
+                                  Evidence: {criterion.evidence}
+                                </p>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       <p className="text-sm leading-7 text-text-secondary">{turn.evaluation.feedback}</p>
                       <div className="grid gap-5 sm:grid-cols-2">
                         <div>
