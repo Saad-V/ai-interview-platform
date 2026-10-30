@@ -74,6 +74,10 @@ export interface InterviewReport {
   areas_for_improvement: string[];
   summary: string;
   recommendation: string;
+  rubric_version?: string | null;
+  total_awarded_score?: number | null;
+  total_maximum_score?: number | null;
+  question_count?: number | null;
 }
 
 export interface InterviewSessionHistoryItem {
@@ -91,6 +95,7 @@ export interface InterviewReportPreview {
   overall_score: number;
   summary: string;
   recommendation: string;
+  rubric_version: string | null;
 }
 
 export interface InterviewHistoryReport extends Omit<InterviewReport, 'overall_score' | 'technical_score' | 'communication_score'> {
@@ -109,11 +114,23 @@ export interface InterviewSessionHistoryDetail extends Omit<InterviewSessionHist
 }
 
 export interface AnswerEvaluation {
+  rubric_version: string | null;
   awarded_score: number | null;
   maximum_score: number | null;
   score: number | null;
+  score_percentage: number | null;
+  technical_score: number | null;
+  communication_score: number | null;
   technical_percentage: number | null;
   communication_percentage: number | null;
+  criteria: {
+    criterion_id: 'ACCURACY' | 'COVERAGE' | 'REASONING' | 'COMMUNICATION';
+    criterion: string;
+    description: string;
+    maximum_score: number;
+    awarded_score: number;
+    evidence: string;
+  }[];
   feedback: string;
   strengths: string[];
   weaknesses: string[];

@@ -98,8 +98,13 @@ export default function SessionHistoryPage() {
                   </div>
                   <div className="flex shrink-0 items-center gap-4">
                     {session.report_preview && (
-                      <span className="mono text-sm">
-                        {Math.round(session.report_preview.overall_score)} / 100
+                      <span className="text-right">
+                        <span className="mono block text-sm">
+                          {Math.round(session.report_preview.overall_score)} / 100
+                        </span>
+                        <span className="mt-1 block text-xs text-text-muted">
+                          {session.report_preview.rubric_version ? 'Rubric score' : 'Legacy AI estimate'}
+                        </span>
                       </span>
                     )}
                     <ArrowDownRight className="h-5 w-5 transition-transform group-hover:translate-x-1 group-hover:translate-y-1" />

@@ -35,7 +35,13 @@ def generate_interview_blueprint(
         system_prompt=INTERVIEW_BLUEPRINT_SYSTEM_PROMPT,
         user_prompt=user_prompt,
         response_schema=InterviewBlueprintSchema,
+        temperature=0.1,
     )
+
+    if blueprint.duration_minutes != duration_minutes:
+        raise ValueError("Generated blueprint duration does not match the interview session.")
+    if blueprint.difficulty != difficulty:
+        raise ValueError("Generated blueprint difficulty does not match the interview session.")
 
     return blueprint
 

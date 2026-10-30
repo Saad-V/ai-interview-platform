@@ -19,19 +19,19 @@ const difficulties = [
   {
     value: InterviewDifficulty.EASY,
     label: 'Easy',
-    description: 'Fundamentals & basics',
+    description: 'Fresher / entry-level · 0-1 years',
     activeClass: 'active-easy',
   },
   {
     value: InterviewDifficulty.MEDIUM,
     label: 'Medium',
-    description: 'Intermediate concepts',
+    description: 'Independent practitioner · 2-5 years',
     activeClass: 'active-medium',
   },
   {
     value: InterviewDifficulty.HARD,
     label: 'Hard',
-    description: 'Advanced & in-depth',
+    description: 'Experienced / senior · 5+ years',
     activeClass: 'active-hard',
   },
 ];
