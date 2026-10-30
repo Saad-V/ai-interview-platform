@@ -13,19 +13,35 @@ class ReportCreate(BaseModel):
 
 
 class InterviewReportResponse(BaseModel):
-    overall_score: float = Field(
+    overall_score: float | None = Field(
+        default=None,
         validation_alias=AliasChoices("overall_score", "overall_percentage")
     )
-    technical_score: float = Field(
+    technical_score: float | None = Field(
+        default=None,
         validation_alias=AliasChoices("technical_score", "technical_percentage")
     )
-    communication_score: float = Field(
+    communication_score: float | None = Field(
+        default=None,
         validation_alias=AliasChoices(
             "communication_score",
             "communication_percentage",
         )
     )
-    strengths: list[str]
-    areas_for_improvement: list[str]
-    summary: str
-    recommendation: str
+    strengths: list[str] = Field(default_factory=list)
+    areas_for_improvement: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices(
+            "areas_for_improvement",
+            "improvements",
+            "weaknesses",
+        ),
+    )
+    summary: str = Field(
+        default="",
+        validation_alias=AliasChoices("summary", "overall_summary"),
+    )
+    recommendation: str = Field(
+        default="",
+        validation_alias=AliasChoices("recommendation", "hiring_recommendation"),
+    )

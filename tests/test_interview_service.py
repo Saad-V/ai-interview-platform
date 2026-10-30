@@ -323,6 +323,55 @@ def test_history_detail_does_not_disclose_other_users_sessions(monkeypatch):
     assert exc_info.value.status_code == 404
 
 
+def test_history_detail_accepts_legacy_report_fields(monkeypatch):
+    session_id = uuid.uuid4()
+    session = SimpleNamespace(
+        id=session_id,
+        status=InterviewStatus.COMPLETED,
+        difficulty=InterviewDifficulty.MEDIUM,
+        planned_duration_minutes=30,
+        created_at=datetime.now(timezone.utc),
+        completed_at=datetime.now(timezone.utc),
+    )
+    report = SimpleNamespace(
+        overall_score=76,
+        report_json={
+            "overall_percentage": 76,
+            "strengths": ["Clear explanation"],
+            "improvements": ["Add more detail"],
+            "summary": "A capable interview.",
+            "hiring_recommendation": "Consider",
+        },
+    )
+    monkeypatch.setattr(
+        interview_service.interview_repository,
+        "get_by_id_for_user",
+        lambda **_kwargs: session,
+    )
+    monkeypatch.setattr(
+        interview_service.report_repository,
+        "get_by_session_id",
+        lambda *_args: report,
+    )
+    monkeypatch.setattr(
+        interview_service.interview_repository,
+        "count_turns",
+        lambda *_args: 2,
+    )
+
+    result = interview_service.get_interview_history_detail(
+        db=object(),
+        interview_session_id=session_id,
+        user_id=uuid.uuid4(),
+    )
+
+    assert result.report is not None
+    assert result.report.overall_score == 76
+    assert result.report.technical_score is None
+    assert result.report.areas_for_improvement == ["Add more detail"]
+    assert result.report.recommendation == "Consider"
+
+
 def test_turn_history_returns_answer_evaluation(monkeypatch):
     user_id = uuid.uuid4()
     session_id = uuid.uuid4()
@@ -370,6 +419,45 @@ def test_turn_history_returns_answer_evaluation(monkeypatch):
     assert result[0].candidate_answer == "I simplified the deployment process."
     assert result[0].evaluation is not None
     assert result[0].evaluation.awarded_score == 8
+
+
+def test_turn_history_accepts_legacy_answer_and_evaluation_fields(monkeypatch):
+    session_id = uuid.uuid4()
+    turn = SimpleNamespace(
+        id=uuid.uuid4(),
+        interview_session_id=session_id,
+        turn_number=1,
+        created_at=datetime.now(timezone.utc),
+        completed_at=None,
+        exchange_json={"question": "What did you improve?", "answer": "I simplified deployment."},
+        evaluation_json={
+            "score": 4,
+            "strengths": ["Clear outcome"],
+            "weaknesses": ["Needs a metric"],
+            "feedback": "A useful example.",
+        },
+    )
+    monkeypatch.setattr(
+        interview_service.interview_repository,
+        "get_by_id_for_user",
+        lambda **_kwargs: SimpleNamespace(id=session_id),
+    )
+    monkeypatch.setattr(
+        interview_service.conversation_turn_repository,
+        "get_by_session_id",
+        lambda **_kwargs: [turn],
+    )
+
+    result = interview_service.get_interview_turn_history(
+        db=object(),
+        interview_session_id=session_id,
+        user_id=uuid.uuid4(),
+    )
+
+    assert result[0].candidate_answer == "I simplified deployment."
+    assert result[0].evaluation is not None
+    assert result[0].evaluation.score == 4
+    assert result[0].evaluation.awarded_score is None
 
 
 def test_submit_answer_response_normalizes_final_report_scores():

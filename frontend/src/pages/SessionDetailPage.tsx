@@ -4,8 +4,21 @@ import { Link, useParams } from 'react-router-dom';
 import { sessionHistoryService } from '../services/sessionHistoryService';
 
 function getErrorMessage(error: unknown) {
-  if (axios.isAxiosError<{ detail?: string }>(error)) {
-    return error.response?.data?.detail ?? 'Could not load this interview.';
+  if (axios.isAxiosError(error)) {
+    const data: unknown = error.response?.data;
+    if (data && typeof data === 'object' && 'detail' in data) {
+      const { detail } = data;
+      if (typeof detail === 'string') return detail;
+      if (Array.isArray(detail)) {
+        const messages = detail
+          .map((item) => item && typeof item === 'object' && 'msg' in item ? item.msg : null)
+          .filter((message): message is string => typeof message === 'string');
+        if (messages.length > 0) return messages.join(' ');
+      }
+    }
+    return error.response
+      ? `Request failed (${error.response.status}).`
+      : error.message || 'Could not reach the server.';
   }
   return error instanceof Error ? error.message : 'Could not load this interview.';
 }
@@ -29,7 +42,7 @@ export default function SessionDetailPage() {
     enabled: Boolean(sessionId),
   });
 
-  if (sessionQuery.isLoading || turnsQuery.isLoading) {
+  if (sessionQuery.isLoading) {
     return (
       <main className="mx-auto min-h-screen max-w-4xl px-5 pt-32 sm:px-8">
         <p className="text-sm text-text-secondary" role="status">Loading interview details…</p>
@@ -37,13 +50,19 @@ export default function SessionDetailPage() {
     );
   }
 
-  const error = sessionQuery.error ?? turnsQuery.error;
-  if (error || !sessionQuery.data || !turnsQuery.data) {
+  if (sessionQuery.error || !sessionQuery.data) {
     return (
       <main className="mx-auto min-h-screen max-w-4xl px-5 pt-32 sm:px-8">
         <p className="text-sm text-text-secondary" role="alert">
-          {error ? getErrorMessage(error) : 'Interview details are unavailable.'}
+          {sessionQuery.error ? getErrorMessage(sessionQuery.error) : 'Interview details are unavailable.'}
         </p>
+        <button
+          className="text-link mt-4 inline-block text-sm"
+          onClick={() => void sessionQuery.refetch()}
+          type="button"
+        >
+          Try again
+        </button>
         <Link className="text-link mt-4 inline-block text-sm" to="/sessions">
           Back to interview history
         </Link>
@@ -52,7 +71,7 @@ export default function SessionDetailPage() {
   }
 
   const session = sessionQuery.data;
-  const turns = turnsQuery.data;
+  const turns = turnsQuery.data ?? [];
 
   return (
     <main className="mx-auto min-h-screen max-w-4xl px-5 pb-20 pt-28 sm:px-8">
@@ -78,7 +97,7 @@ export default function SessionDetailPage() {
             <div>
               <p className="eyebrow text-text-muted">Overall score</p>
               <p className="editorial mt-2 text-7xl">
-                {Math.round(session.report.overall_score)}
+                {session.report.overall_score === null ? '—' : Math.round(session.report.overall_score)}
                 <span className="ml-2 text-2xl text-text-muted">/100</span>
               </p>
             </div>
@@ -121,7 +140,20 @@ export default function SessionDetailPage() {
 
       <section className="py-8">
         <p className="eyebrow text-text-muted">Questions and feedback</p>
-        {turns.length === 0 ? (
+        {turnsQuery.isLoading ? (
+          <p className="mt-4 text-sm text-text-secondary" role="status">Loading answers…</p>
+        ) : turnsQuery.error ? (
+          <div className="mt-4" role="alert">
+            <p className="text-sm text-text-secondary">{getErrorMessage(turnsQuery.error)}</p>
+            <button
+              className="text-link mt-3 text-sm"
+              onClick={() => void turnsQuery.refetch()}
+              type="button"
+            >
+              Retry loading answers
+            </button>
+          </div>
+        ) : turns.length === 0 ? (
           <p className="mt-4 text-sm text-text-secondary">No submitted answers are available.</p>
         ) : (
           <ol className="mt-4 divide-y divide-border border-y border-border">
@@ -141,7 +173,12 @@ export default function SessionDetailPage() {
                 {turn.evaluation && (
                   <details className="mt-5 border-t border-border pt-4">
                     <summary className="cursor-pointer text-sm font-medium">
-                      View evaluation · {turn.evaluation.awarded_score} / {turn.evaluation.maximum_score}
+                      View evaluation
+                      {turn.evaluation.awarded_score !== null && turn.evaluation.maximum_score !== null
+                        ? ` · ${turn.evaluation.awarded_score} / ${turn.evaluation.maximum_score}`
+                        : turn.evaluation.score !== null
+                          ? ` · Score ${turn.evaluation.score}`
+                          : ''}
                     </summary>
                     <div className="mt-4 space-y-5">
                       <p className="text-sm leading-7 text-text-secondary">{turn.evaluation.feedback}</p>
@@ -173,9 +210,21 @@ export default function SessionDetailPage() {
                         <span className="font-medium text-text-primary">Suggested improvement: </span>
                         {turn.evaluation.suggested_improvement}
                       </p>
-                      <p className="mono text-text-muted">
-                        Technical {Math.round(turn.evaluation.technical_percentage)}% · Communication {Math.round(turn.evaluation.communication_percentage)}%
-                      </p>
+                      {(turn.evaluation.technical_percentage !== null
+                        || turn.evaluation.communication_percentage !== null) && (
+                        <p className="mono text-text-muted">
+                          {turn.evaluation.technical_percentage !== null
+                            ? `Technical ${Math.round(turn.evaluation.technical_percentage)}%`
+                            : ''}
+                          {turn.evaluation.technical_percentage !== null
+                            && turn.evaluation.communication_percentage !== null
+                            ? ' · '
+                            : ''}
+                          {turn.evaluation.communication_percentage !== null
+                            ? `Communication ${Math.round(turn.evaluation.communication_percentage)}%`
+                            : ''}
+                        </p>
+                      )}
                     </div>
                   </details>
                 )}
