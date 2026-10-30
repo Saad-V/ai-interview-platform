@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
+  History,
   Loader2,
   AlertCircle,
   Play,
@@ -108,13 +109,24 @@ export default function SetupPage() {
           transition={{ duration: 0.6 }}
           className="mb-10"
         >
-          <p className="eyebrow text-text-muted">Start with the context</p>
-          <h1 className="editorial mt-3 text-5xl md:text-6xl">
-            Set up your interview
-          </h1>
-          <p className="mt-3 max-w-xl text-text-secondary">
-            Add your resume and the job description. We&apos;ll shape a practice session around both.
-          </p>
+          <div className="flex flex-wrap items-end justify-between gap-5">
+            <div>
+              <p className="eyebrow text-text-muted">Start with the context</p>
+              <h1 className="editorial mt-3 text-5xl md:text-6xl">
+                Set up your interview
+              </h1>
+              <p className="mt-3 max-w-xl text-text-secondary">
+                Add your resume and the job description. We&apos;ll shape a practice session around both.
+              </p>
+            </div>
+            <Link
+              className="text-link inline-flex items-center gap-2 text-sm"
+              to="/sessions"
+            >
+              <History className="h-4 w-4" aria-hidden="true" />
+              View past interviews and reports
+            </Link>
+          </div>
         </motion.div>
 
         <motion.div
