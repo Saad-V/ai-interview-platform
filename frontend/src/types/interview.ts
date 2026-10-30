@@ -76,6 +76,56 @@ export interface InterviewReport {
   recommendation: string;
 }
 
+export interface InterviewSessionHistoryItem {
+  id: string;
+  status: InterviewStatus;
+  difficulty: InterviewDifficulty;
+  planned_duration_minutes: number;
+  created_at: string;
+  completed_at: string | null;
+  turn_count: number;
+  report_preview: InterviewReportPreview | null;
+}
+
+export interface InterviewReportPreview {
+  overall_score: number;
+  summary: string;
+  recommendation: string;
+}
+
+export interface InterviewSessionHistoryPage {
+  items: InterviewSessionHistoryItem[];
+  next_cursor: string | null;
+}
+
+export interface InterviewSessionHistoryDetail extends Omit<InterviewSessionHistoryItem, 'report_preview'> {
+  report: InterviewReport | null;
+}
+
+export interface AnswerEvaluation {
+  awarded_score: number;
+  maximum_score: number;
+  technical_percentage: number;
+  communication_percentage: number;
+  feedback: string;
+  strengths: string[];
+  weaknesses: string[];
+  missing_topics: string[];
+  suggested_improvement: string;
+}
+
+export interface ConversationTurnHistory {
+  id: string;
+  interview_session_id: string;
+  turn_number: number;
+  created_at: string;
+  completed_at: string | null;
+  section_title: string;
+  question: string;
+  candidate_answer: string;
+  evaluation: AnswerEvaluation | null;
+}
+
 export interface SubmitAnswerResponse {
   interview_completed: boolean;
   current_question: QuestionResponse | null;

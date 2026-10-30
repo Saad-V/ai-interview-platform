@@ -1,14 +1,20 @@
 import time
 import uuid
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from fastapi import HTTPException
 from google.genai import errors
+import pytest
 
 from app.api.v1 import interview_sessions
 from app.core.enums import InterviewDifficulty, InterviewStatus
 from app.schemas.interview_blueprint import InterviewBlueprintCreate
-from app.schemas.interview_runtime_schema import SubmitAnswerRequest
+from app.schemas.interview_history import InterviewSessionHistoryPage
+from app.schemas.interview_runtime_schema import (
+    SubmitAnswerRequest,
+    SubmitAnswerResponse,
+)
 from app.services import interview_service
 
 
@@ -228,3 +234,167 @@ def test_start_interview_returns_503_when_ai_service_is_unavailable(monkeypatch)
     except HTTPException as exc:
         assert exc.status_code == 503
         assert "temporarily unavailable" in exc.detail.lower()
+
+
+def test_history_page_scopes_user_and_normalizes_report_fields(monkeypatch):
+    user_id = uuid.uuid4()
+    session_id = uuid.uuid4()
+    session = SimpleNamespace(
+        id=session_id,
+        status=InterviewStatus.COMPLETED,
+        difficulty=InterviewDifficulty.MEDIUM,
+        planned_duration_minutes=30,
+        created_at=datetime.now(timezone.utc),
+        completed_at=datetime.now(timezone.utc),
+    )
+    report = SimpleNamespace(
+        overall_score=84,
+        report_json={
+            "overall_percentage": 84,
+            "technical_percentage": 82,
+            "communication_percentage": 86,
+            "strengths": ["Clear reasoning"],
+            "areas_for_improvement": ["Add more detail"],
+            "summary": "A strong interview.",
+            "recommendation": "Hire",
+        }
+    )
+    captured = {}
+
+    def get_page(db, user_id, limit, cursor):
+        captured.update(user_id=user_id, limit=limit, cursor=cursor)
+        return [(session, report, 4), (SimpleNamespace(), None, 0)]
+
+    monkeypatch.setattr(
+        interview_service.interview_repository,
+        "get_history_page_for_user",
+        get_page,
+    )
+
+    result = interview_service.get_interview_history_page(
+        db=object(),
+        user_id=user_id,
+        limit=1,
+        cursor=None,
+    )
+
+    assert captured == {"user_id": user_id, "limit": 1, "cursor": None}
+    assert isinstance(result, InterviewSessionHistoryPage)
+    assert result.items[0].turn_count == 4
+    assert result.items[0].report_preview is not None
+    assert result.items[0].report_preview.overall_score == 84
+    assert result.items[0].report_preview.summary == "A strong interview."
+    assert result.items[0].report_preview.recommendation == "Hire"
+    assert result.next_cursor == session_id
+
+
+def test_history_page_rejects_cursor_not_owned_by_user(monkeypatch):
+    monkeypatch.setattr(
+        interview_service.interview_repository,
+        "get_history_page_for_user",
+        lambda **_kwargs: None,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        interview_service.get_interview_history_page(
+            db=object(),
+            user_id=uuid.uuid4(),
+            limit=20,
+            cursor=uuid.uuid4(),
+        )
+
+    assert exc_info.value.status_code == 400
+
+
+def test_history_detail_does_not_disclose_other_users_sessions(monkeypatch):
+    monkeypatch.setattr(
+        interview_service.interview_repository,
+        "get_by_id_for_user",
+        lambda **_kwargs: None,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        interview_service.get_interview_history_detail(
+            db=object(),
+            interview_session_id=uuid.uuid4(),
+            user_id=uuid.uuid4(),
+        )
+
+    assert exc_info.value.status_code == 404
+
+
+def test_turn_history_returns_answer_evaluation(monkeypatch):
+    user_id = uuid.uuid4()
+    session_id = uuid.uuid4()
+    turn = SimpleNamespace(
+        id=uuid.uuid4(),
+        interview_session_id=session_id,
+        turn_number=1,
+        created_at=datetime.now(timezone.utc),
+        completed_at=None,
+        exchange_json={
+            "section_title": "Experience",
+            "question": "What did you improve?",
+            "candidate_answer": "I simplified the deployment process.",
+        },
+        evaluation_json={
+            "awarded_score": 8,
+            "maximum_score": 10,
+            "technical_percentage": 80,
+            "communication_percentage": 90,
+            "feedback": "A focused example.",
+            "strengths": ["Clear outcome"],
+            "weaknesses": [],
+            "missing_topics": [],
+            "suggested_improvement": "Quantify the time saved.",
+        },
+    )
+    monkeypatch.setattr(
+        interview_service.interview_repository,
+        "get_by_id_for_user",
+        lambda **_kwargs: SimpleNamespace(id=session_id),
+    )
+    monkeypatch.setattr(
+        interview_service.conversation_turn_repository,
+        "get_by_session_id",
+        lambda **_kwargs: [turn],
+    )
+
+    result = interview_service.get_interview_turn_history(
+        db=object(),
+        interview_session_id=session_id,
+        user_id=user_id,
+    )
+
+    assert len(result) == 1
+    assert result[0].candidate_answer == "I simplified the deployment process."
+    assert result[0].evaluation is not None
+    assert result[0].evaluation.awarded_score == 8
+
+
+def test_submit_answer_response_normalizes_final_report_scores():
+    response = SubmitAnswerResponse.model_validate(
+        {
+            "interview_completed": True,
+            "report": {
+                "overall_percentage": 84,
+                "technical_percentage": 82,
+                "communication_percentage": 86,
+                "strengths": ["Clear reasoning"],
+                "areas_for_improvement": ["Add more detail"],
+                "summary": "A strong interview.",
+                "recommendation": "Hire",
+            },
+        }
+    )
+
+    assert response.report is not None
+    assert response.report.model_dump() == {
+        "overall_score": 84,
+        "technical_score": 82,
+        "communication_score": 86,
+        "strengths": ["Clear reasoning"],
+        "areas_for_improvement": ["Add more detail"],
+        "summary": "A strong interview.",
+        "recommendation": "Hire",
+    }
