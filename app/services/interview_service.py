@@ -84,8 +84,8 @@ def get_interview_history_page(
             report_preview=(
                 InterviewReportPreview(
                     overall_score=report.overall_score,
-                    summary=report.report_json["summary"],
-                    recommendation=report.report_json["recommendation"],
+                    summary=report.report_json.get("summary", ""),
+                    recommendation=report.report_json.get("recommendation", ""),
                 )
                 if report is not None
                 else None
@@ -113,6 +113,12 @@ def get_interview_history_detail(
         raise HTTPException(status_code=404, detail="Interview session not found.")
 
     report = report_repository.get_by_session_id(db, interview_session_id)
+    report_response = None
+    if report is not None:
+        report_data = dict(report.report_json or {})
+        report_data.setdefault("overall_score", report.overall_score)
+        report_response = InterviewReportResponse.model_validate(report_data)
+
     return InterviewSessionHistoryDetail(
         id=session.id,
         status=session.status,
@@ -121,11 +127,7 @@ def get_interview_history_detail(
         created_at=session.created_at,
         completed_at=session.completed_at,
         turn_count=interview_repository.count_turns(db, interview_session_id),
-        report=(
-            InterviewReportResponse.model_validate(report.report_json)
-            if report is not None
-            else None
-        ),
+        report=report_response,
     )
 
 
@@ -146,24 +148,29 @@ def get_interview_turn_history(
         db=db,
         interview_session_id=interview_session_id,
     )
-    return [
-        ConversationTurnHistoryResponse(
+    history = []
+    for turn in turns:
+        exchange = turn.exchange_json or {}
+        evaluation = turn.evaluation_json
+        history.append(ConversationTurnHistoryResponse(
             id=turn.id,
             interview_session_id=turn.interview_session_id,
             turn_number=turn.turn_number,
             created_at=turn.created_at,
             completed_at=turn.completed_at,
-            section_title=turn.exchange_json["section_title"],
-            question=turn.exchange_json["question"],
-            candidate_answer=turn.exchange_json["candidate_answer"],
+            section_title=exchange.get("section_title", exchange.get("section", "Interview")),
+            question=exchange.get("question", ""),
+            candidate_answer=exchange.get(
+                "candidate_answer",
+                exchange.get("answer", exchange.get("response", "")),
+            ),
             evaluation=(
-                AnswerEvaluationResponse.model_validate(turn.evaluation_json)
-                if turn.evaluation_json is not None
+                AnswerEvaluationResponse.model_validate(evaluation)
+                if evaluation is not None
                 else None
             ),
-        )
-        for turn in turns
-    ]
+        ))
+    return history
 
 
 def start_interview(

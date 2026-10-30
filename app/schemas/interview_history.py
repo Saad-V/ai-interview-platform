@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 
 from app.core.enums import InterviewDifficulty, InterviewStatus
 from app.schemas.report import InterviewReportResponse
@@ -41,15 +41,16 @@ class InterviewSessionHistoryDetail(BaseModel):
 
 
 class AnswerEvaluationResponse(BaseModel):
-    awarded_score: int
-    maximum_score: int
-    technical_percentage: float
-    communication_percentage: float
-    feedback: str
-    strengths: list[str]
-    weaknesses: list[str]
-    missing_topics: list[str]
-    suggested_improvement: str
+    awarded_score: int | None = None
+    maximum_score: int | None = None
+    score: float | None = None
+    technical_percentage: float | None = None
+    communication_percentage: float | None = None
+    feedback: str = ""
+    strengths: list[str] = Field(default_factory=list)
+    weaknesses: list[str] = Field(default_factory=list)
+    missing_topics: list[str] = Field(default_factory=list)
+    suggested_improvement: str = ""
 
 
 class ConversationTurnHistoryResponse(BaseModel):
@@ -58,7 +59,10 @@ class ConversationTurnHistoryResponse(BaseModel):
     turn_number: int
     created_at: datetime
     completed_at: datetime | None
-    section_title: str
-    question: str
-    candidate_answer: str
+    section_title: str = "Interview"
+    question: str = ""
+    candidate_answer: str = Field(
+        default="",
+        validation_alias=AliasChoices("candidate_answer", "answer", "response"),
+    )
     evaluation: AnswerEvaluationResponse | None

@@ -93,20 +93,27 @@ export interface InterviewReportPreview {
   recommendation: string;
 }
 
+export interface InterviewHistoryReport extends Omit<InterviewReport, 'overall_score' | 'technical_score' | 'communication_score'> {
+  overall_score: number | null;
+  technical_score: number | null;
+  communication_score: number | null;
+}
+
 export interface InterviewSessionHistoryPage {
   items: InterviewSessionHistoryItem[];
   next_cursor: string | null;
 }
 
 export interface InterviewSessionHistoryDetail extends Omit<InterviewSessionHistoryItem, 'report_preview'> {
-  report: InterviewReport | null;
+  report: InterviewHistoryReport | null;
 }
 
 export interface AnswerEvaluation {
-  awarded_score: number;
-  maximum_score: number;
-  technical_percentage: number;
-  communication_percentage: number;
+  awarded_score: number | null;
+  maximum_score: number | null;
+  score: number | null;
+  technical_percentage: number | null;
+  communication_percentage: number | null;
   feedback: string;
   strengths: string[];
   weaknesses: string[];
