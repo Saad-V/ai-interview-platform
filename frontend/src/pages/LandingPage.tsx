@@ -35,11 +35,11 @@ export default function LandingPage() {
             <button className="primary-action" onClick={() => navigate('/setup')} type="button">
               Start an interview <ArrowRight size={17} />
             </button>
-            <a className="text-link" href="#sample-report">See a sample report</a>
+            <Link className="text-link" to="/sample-report">See a sample report</Link>
           </div>
         </div>
 
-        <aside className="preview-card" id="sample-report" aria-label="Sample interview question and evaluation">
+        <aside className="preview-card" aria-label="Interview question and evaluation preview">
           <div className="flex items-center justify-between gap-4">
             <p className="eyebrow text-text-muted">Practice preview</p>
             <span className="mono text-text-muted">QUESTION 03</span>

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { InterviewProvider } from './contexts/InterviewContext';
@@ -13,6 +14,8 @@ import InterviewPage from './pages/InterviewPage';
 import ReportPage from './pages/ReportPage';
 import SessionHistoryPage from './pages/SessionHistoryPage';
 import SessionDetailPage from './pages/SessionDetailPage';
+
+const SampleReportPage = lazy(() => import('./pages/SampleReportPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +36,14 @@ export default function App() {
             <PageTransition>
               <Routes>
                 <Route path="/" element={<LandingPage />} />
+                <Route
+                  path="/sample-report"
+                  element={(
+                    <Suspense fallback={<p className="px-5 pt-32 text-center text-sm text-text-secondary" role="status">Loading sample report…</p>}>
+                      <SampleReportPage />
+                    </Suspense>
+                  )}
+                />
                 <Route path="/login" element={<AuthPage mode="login" />} />
                 <Route path="/register" element={<AuthPage mode="register" />} />
                 <Route element={<RequireAuth />}>
